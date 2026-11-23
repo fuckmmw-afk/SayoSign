@@ -371,7 +371,7 @@
 "%@ is not a .dylib or .deb" = "%@ is not a .dylib or .deb";
 "Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh." = "Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh.";
 "No tweaks for this app in your sources" = "No tweaks for this app in your sources";
-"Update all (%ld)" = "Update all (%d)";
+"Update all (%ld)" = "Update all (%ld)";
 "Show tweaks for other apps" = "Show tweaks for other apps";
 "v%@ → v%@" = "v%@ → v%@";
 "Downloaded" = "Downloaded";
