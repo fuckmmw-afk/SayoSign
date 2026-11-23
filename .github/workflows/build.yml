@@ -27,7 +27,7 @@ jobs:
           path: build/sayosign
 
   ios:
-    runs-on: macos-latest
+    runs-on: ${{ vars.IOS_RUNNER || 'macos-15-intel' }}
     steps:
       - uses: actions/checkout@v4
       - name: Select newest Xcode
