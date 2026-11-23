@@ -369,3 +369,11 @@
 "Check for tweak updates" = "Check for tweak updates";
 "Tweaks updated: %@" = "Tweaks updated: %@";
 "%@ is not a .dylib or .deb" = "%@ is not a .dylib or .deb";
+"Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh." = "Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh.";
+"No tweaks for this app in your sources" = "No tweaks for this app in your sources";
+"Update all (%ld)" = "Update all (%d)";
+"Show tweaks for other apps" = "Show tweaks for other apps";
+"v%@ → v%@" = "v%@ → v%@";
+"Downloaded" = "Downloaded";
+"not in sources" = "not in sources";
+"not downloaded" = "not downloaded";

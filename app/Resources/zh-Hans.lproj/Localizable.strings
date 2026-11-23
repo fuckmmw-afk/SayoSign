@@ -369,3 +369,11 @@
 "Check for tweak updates" = "检查插件更新";
 "Tweaks updated: %@" = "插件已更新：%@";
 "%@ is not a .dylib or .deb" = "%@ 不是 .dylib 或 .deb";
+"Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh." = "打开要注入此应用的插件。已下载的插件会保持最新：可在此更新，或在刷新软件源时自动更新。";
+"No tweaks for this app in your sources" = "你的软件源中没有此应用的插件";
+"Update all (%ld)" = "全部更新（%ld）";
+"Show tweaks for other apps" = "显示其他应用的插件";
+"v%@ → v%@" = "v%@ → v%@";
+"Downloaded" = "已下载";
+"not in sources" = "不在软件源中";
+"not downloaded" = "未下载";

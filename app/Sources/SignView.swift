@@ -29,6 +29,11 @@ struct SignView: View {
     @State private var error: String?
     @State private var setup = false
     @State private var attached = false
+    /// Identifiers of source tweaks to build in (their files can change name on update).
+    @State private var picked: Set<String> = []
+    @State private var tweakBusy: Set<String> = []
+    @State private var checking = false
+    @State private var allSourceTweaks = false
 
     enum PickKind: Identifiable {
         case icon, tweak, entitlements
@@ -108,6 +113,10 @@ struct SignView: View {
                     LabeledField(title: L("Minimum iOS"), text: $minIOS, placeholder: app.minOS)
                 }
 
+                if !sourceItems.isEmpty || !state.allRepoTweaks.isEmpty {
+                    sourceTweaksSection
+                }
+
                 Section(header: Text(L("Tweaks")), footer: Text(L("Supports .dylib, .deb and .framework. Substrate, ElleKit and libhooker tweaks are wired to SayoHook automatically."))) {
                     ForEach(tweaks, id: \.self) { t in
                         HStack {
@@ -124,7 +133,10 @@ struct SignView: View {
                     if !saved.isEmpty {
                         Menu {
                             ForEach(saved, id: \.self) { u in
-                                Button(u.lastPathComponent) { if !tweaks.contains(u) { tweaks.append(u) } }
+                                Button(u.lastPathComponent) {
+                                if let i = state.installed(file: u) { picked.insert(i.identifier) }
+                                else if !tweaks.contains(u) { tweaks.append(u) }
+                            }
                             }
                         } label: { Label(L("Add saved tweak"), systemImage: "tray.full") }
                     }
@@ -215,7 +227,7 @@ struct SignView: View {
                 if !attached {
                     attached = true
                     if state.settings.autoAttachTweaks {
-                        for u in state.tweakFiles(for: app.bundleID) where !tweaks.contains(u) { tweaks.append(u) }
+                        picked = Set(state.installedTweaks.filter { $0.fits(app.bundleID) }.map { $0.identifier })
                     }
                 }
             }
@@ -234,6 +246,109 @@ struct SignView: View {
         FilePicker.shared.pick(types, multiple: kind == .tweak) { urls in
             for u in urls { take(u, kind: kind) }
         }
+    }
+
+    struct SourceItem: Identifiable {
+        var id: String
+        var repo: RepoTweak?
+        var installed: InstalledTweak?
+        var name: String { repo?.name ?? installed?.name ?? id }
+        var outdated: Bool {
+            guard let r = repo, let i = installed else { return false }
+            return r.version != i.version || r.downloadURL != i.downloadURL
+        }
+        func fits(_ bundleID: String) -> Bool { (repo?.fits(bundleID) ?? false) || (installed?.fits(bundleID) ?? false) }
+    }
+
+    /// Source tweaks for this app (or all of them), merged with what is already downloaded.
+    var sourceItems: [SourceItem] {
+        var items: [String: SourceItem] = [:]
+        var order: [String] = []
+        for i in state.installedTweaks {
+            items[i.identifier] = SourceItem(id: i.identifier, repo: state.latest(for: i), installed: i)
+            order.append(i.identifier)
+        }
+        for r in state.allRepoTweaks where items[r.identifier] == nil {
+            items[r.identifier] = SourceItem(id: r.identifier, repo: r, installed: nil)
+            order.append(r.identifier)
+        }
+        return order.compactMap { items[$0] }.filter { allSourceTweaks || picked.contains($0.id) || $0.fits(app.bundleID) }
+    }
+
+    var sourceTweaksSection: some View {
+        let items = sourceItems
+        let outdated = items.filter { $0.outdated && $0.repo != nil }
+        return Section(header: Text(L("Tweaks from sources")),
+                       footer: Text(L("Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh."))) {
+            if items.isEmpty {
+                Text(L("No tweaks for this app in your sources")).font(.callout).foregroundColor(.secondary)
+            }
+            ForEach(items) { item in sourceRow(item) }
+            if !outdated.isEmpty {
+                Button {
+                    Task {
+                        for o in outdated { if let r = o.repo { await fetch(r) } }
+                    }
+                } label: { Label(LF("Update all (%ld)", outdated.count), systemImage: "arrow.down.circle.fill") }
+            }
+            Button {
+                checking = true
+                Task {
+                    await state.refreshSources()
+                    checking = false
+                }
+            } label: {
+                HStack {
+                    Label(L("Check for tweak updates"), systemImage: "arrow.triangle.2.circlepath")
+                    if checking { Spacer(); ProgressView() }
+                }
+            }
+            .disabled(checking)
+            Toggle(L("Show tweaks for other apps"), isOn: $allSourceTweaks)
+        }
+    }
+
+    func sourceRow(_ item: SourceItem) -> some View {
+        let busy = tweakBusy.contains(item.id)
+        let on = Binding<Bool>(
+            get: { picked.contains(item.id) },
+            set: { v in
+                if !v { picked.remove(item.id); return }
+                picked.insert(item.id)
+                if item.installed == nil, let r = item.repo { Task { await fetch(r) } }
+            })
+        return HStack(spacing: 10) {
+            Image(systemName: (item.repo?.downloadURL ?? item.installed?.file ?? "").lowercased().hasSuffix(".deb") ? "shippingbox.fill" : "puzzlepiece.extension.fill")
+                .foregroundColor(Theme.rose)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name).lineLimit(1)
+                Group {
+                    if let i = item.installed, item.outdated, let r = item.repo {
+                        Text(LF("v%@ → v%@", i.version, r.version)).foregroundColor(.orange)
+                    } else if let i = item.installed {
+                        Text(i.version.isEmpty ? L("Downloaded") : "v" + i.version + (item.repo == nil ? " · " + L("not in sources") : ""))
+                    } else {
+                        Text((item.repo.map { $0.version.isEmpty ? "" : "v" + $0.version + " · " } ?? "") + L("not downloaded"))
+                    }
+                }
+                .font(.caption).foregroundColor(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            if busy {
+                ProgressView()
+            } else if let r = item.repo, item.installed == nil || item.outdated {
+                Button(item.installed == nil ? L("Get") : L("Update")) { Task { await fetch(r) } }
+                    .buttonStyle(SmallButtonStyle(filled: false))
+            }
+            Toggle("", isOn: on).labelsHidden().disabled(busy)
+        }
+    }
+
+    func fetch(_ r: RepoTweak) async {
+        tweakBusy.insert(r.identifier)
+        let ok = await state.installTweak(r, quiet: true)
+        tweakBusy.remove(r.identifier)
+        if !ok { picked.remove(r.identifier) }
     }
 
     func savedTweaks() -> [URL] {
@@ -306,7 +421,10 @@ struct SignView: View {
         opts.fileSharing = fileSharing
         opts.container = inside
         do {
-            let result = try await state.performSign(app: app, cert: c, options: opts, tweaks: tweaks) { f, s in
+            let fromSources = state.installedTweaks.filter { picked.contains($0.identifier) }.map(state.tweakURL)
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            let all = fromSources + tweaks.filter { !fromSources.contains($0) }
+            let result = try await state.performSign(app: app, cert: c, options: opts, tweaks: all) { f, s in
                 self.progress = f
                 self.stage = s
             }

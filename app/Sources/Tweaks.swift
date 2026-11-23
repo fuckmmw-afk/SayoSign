@@ -53,6 +53,10 @@ extension AppState {
             var base = url.deletingPathExtension().lastPathComponent
             if base.isEmpty || base == "/" { base = t.name }
             base = base.replacingOccurrences(of: "/", with: "-")
+            // Versioned links (Name-1.2.dylib) are saved as Name.dylib, so the name inside the app stays the same.
+            if !t.version.isEmpty, base.count > t.version.count + 1, base.hasSuffix("-" + t.version) {
+                base = String(base.dropLast(t.version.count + 1))
+            }
             let fileName = base + "." + ext
             let dst = Paths.tweaks.appendingPathComponent(fileName)
             let previous = installed(t)

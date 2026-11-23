@@ -370,3 +370,11 @@
 "Check for tweak updates" = "Проверить обновления твиков";
 "Tweaks updated: %@" = "Твики обновлены: %@";
 "%@ is not a .dylib or .deb" = "%@ — не .dylib и не .deb";
+"Turn on the tweaks to build into this app. Downloaded tweaks are kept up to date; new versions are fetched here or when sources refresh." = "Включите твики, которые нужно встроить в это приложение. Скачанные твики обновляются здесь кнопкой или сами при обновлении источников.";
+"No tweaks for this app in your sources" = "В ваших источниках нет твиков для этого приложения";
+"Update all (%ld)" = "Обновить все (%ld)";
+"Show tweaks for other apps" = "Показать твики для других приложений";
+"v%@ → v%@" = "v%@ → v%@";
+"Downloaded" = "Скачан";
+"not in sources" = "нет в источниках";
+"not downloaded" = "не скачан";
