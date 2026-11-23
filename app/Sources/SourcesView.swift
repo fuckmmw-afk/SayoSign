@@ -44,7 +44,7 @@ struct SourcesView: View {
                     }
                     if state.sources.isEmpty {
                         EmptyState(title: L("No sources"), subtitle: L("Add an AltStore, SideStore, Feather or ESign repository URL to browse apps."))
-                    } else if (mode == 0 || !hasTweaks) ? allApps.isEmpty : allTweaks.isEmpty {
+                    } else if ((mode == 0 || !hasTweaks) ? allApps.isEmpty : allTweaks.isEmpty) {
                         EmptyState(title: L("Nothing found"), subtitle: L("Try another search or refresh your sources."))
                     }
                     if mode == 1 && hasTweaks {
