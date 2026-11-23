@@ -106,6 +106,15 @@ struct SettingsView: View {
                     Toggle(L("Remove Watch apps by default"), isOn: $state.settings.removeWatchApps)
                 }
 
+                Section(header: Text(L("Tweaks from sources")),
+                        footer: Text(L("Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for."))) {
+                    Toggle(L("Update tweaks automatically"), isOn: $state.settings.autoUpdateTweaks)
+                    Toggle(L("Attach tweaks to their apps"), isOn: $state.settings.autoAttachTweaks)
+                    Button {
+                        Task { await state.refreshSources(); if !state.settings.autoUpdateTweaks { await state.updateTweaks() } }
+                    } label: { Label(L("Check for tweak updates"), systemImage: "arrow.triangle.2.circlepath") }
+                }
+
                 Section(header: Text(L("Appearance"))) {
                     Picker(L("Theme"), selection: $state.settings.appearance) {
                         Text(L("System")).tag(0)

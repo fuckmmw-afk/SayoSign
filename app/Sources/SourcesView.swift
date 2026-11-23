@@ -6,6 +6,17 @@ struct SourcesView: View {
     @State private var newURL = ""
     @State private var search = ""
     @State private var filter: UUID?
+    /// 0 = apps, 1 = tweaks.
+    @State private var mode = 0
+
+    var hasTweaks: Bool { state.sources.contains { !($0.tweaks ?? []).isEmpty } }
+
+    var allTweaks: [RepoTweak] {
+        let t = state.sources.filter { filter == nil || $0.id == filter }.flatMap { $0.tweaks ?? [] }
+        if search.isEmpty { return t }
+        return t.filter { $0.name.localizedCaseInsensitiveContains(search) || $0.identifier.localizedCaseInsensitiveContains(search)
+            || $0.developer.localizedCaseInsensitiveContains(search) || $0.targets.contains { $0.localizedCaseInsensitiveContains(search) } }
+    }
 
     var allApps: [RepoApp] {
         let apps = state.sources.filter { filter == nil || $0.id == filter }.flatMap { $0.apps }
@@ -24,17 +35,30 @@ struct SourcesView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    if hasTweaks {
+                        Picker("", selection: $mode) {
+                            Text(L("Apps")).tag(0)
+                            Text(L("Tweaks")).tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     if state.sources.isEmpty {
                         EmptyState(title: L("No sources"), subtitle: L("Add an AltStore, SideStore, Feather or ESign repository URL to browse apps."))
-                    } else if allApps.isEmpty {
+                    } else if (mode == 0 || !hasTweaks) ? allApps.isEmpty : allTweaks.isEmpty {
                         EmptyState(title: L("Nothing found"), subtitle: L("Try another search or refresh your sources."))
                     }
-                    LazyVStack(spacing: 10) {
-                        ForEach(allApps) { app in
-                            NavigationLink(destination: RepoAppDetail(app: app)) {
-                                RepoAppRow(app: app)
+                    if mode == 1 && hasTweaks {
+                        LazyVStack(spacing: 10) {
+                            ForEach(allTweaks) { t in RepoTweakRow(tweak: t) }
+                        }
+                    } else {
+                        LazyVStack(spacing: 10) {
+                            ForEach(allApps) { app in
+                                NavigationLink(destination: RepoAppDetail(app: app)) {
+                                    RepoAppRow(app: app)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -100,10 +124,8 @@ struct RepoAppRow: View {
                 }
                 Spacer(minLength: 6)
                 Button(L("Get")) {
-                    if let u = URL(string: app.downloadURL) {
-                        Task { await state.download(u, name: app.name) }
-                        state.show(LF("Downloading %@", app.name))
-                    }
+                    Task { await state.get(app) }
+                    state.show(LF("Downloading %@", app.name))
                 }
                 .buttonStyle(SmallButtonStyle())
             }
@@ -123,10 +145,8 @@ struct RepoAppDetail: View {
                         Text(app.name).font(.title2.weight(.bold))
                         Text(app.developer).foregroundColor(.secondary)
                         Button(L("Get")) {
-                            if let u = URL(string: app.downloadURL) {
-                                Task { await state.download(u, name: app.name) }
-                                state.tab = 0
-                            }
+                            Task { await state.get(app) }
+                            state.tab = 0
                         }
                         .buttonStyle(SmallButtonStyle())
                     }
@@ -149,6 +169,11 @@ struct RepoAppDetail: View {
                         }
                     }
                 }
+                let tweaks = (state.sources.first { $0.id == app.sourceID }?.tweaks ?? []).filter { !app.bundleID.isEmpty && $0.fits(app.bundleID) }
+                if !tweaks.isEmpty {
+                    Text(L("Tweaks for this app")).font(.headline)
+                    ForEach(tweaks) { t in RepoTweakRow(tweak: t) }
+                }
                 if !app.description.isEmpty {
                     Text(app.description).font(.body)
                 }
@@ -156,5 +181,69 @@ struct RepoAppDetail: View {
             .padding(16)
         }
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct RepoTweakRow: View {
+    @EnvironmentObject var state: AppState
+    let tweak: RepoTweak
+    @State private var working = false
+
+    var body: some View {
+        let inst = state.installed(tweak)
+        let outdated = inst.map { $0.version != tweak.version || $0.downloadURL != tweak.downloadURL } ?? false
+        Card {
+            HStack(spacing: 12) {
+                if tweak.iconURL.isEmpty {
+                    Image(systemName: tweak.downloadURL.lowercased().hasSuffix(".deb") ? "shippingbox.fill" : "puzzlepiece.extension.fill")
+                        .font(.title2).foregroundColor(.white)
+                        .frame(width: 54, height: 54)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.gradient))
+                } else {
+                    AppIconView(image: nil, url: tweak.iconURL)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tweak.name).font(.headline).lineLimit(1)
+                    Text(targetsText).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                    HStack(spacing: 6) {
+                        if !tweak.version.isEmpty { Pill(text: "v" + tweak.version) }
+                        if tweak.size > 0 { Pill(text: formatSize(tweak.size), color: .secondary) }
+                        if let i = inst, outdated, !i.version.isEmpty { Pill(text: LF("Have %@", i.version), color: .secondary) }
+                    }
+                }
+                Spacer(minLength: 6)
+                if working {
+                    ProgressView()
+                } else {
+                    Button(inst == nil ? L("Get") : (outdated ? L("Update") : L("Installed"))) {
+                        working = true
+                        Task {
+                            await state.installTweak(tweak)
+                            working = false
+                        }
+                    }
+                    .buttonStyle(SmallButtonStyle(filled: inst == nil || outdated))
+                }
+            }
+            if !tweak.description.isEmpty {
+                Text(tweak.description).font(.caption).foregroundColor(.secondary).lineLimit(3).padding(.top, 6)
+            }
+        }
+        .contextMenu {
+            if let i = inst {
+                Button { state.setAutoUpdate(i, !i.autoUpdate) } label: {
+                    Label(i.autoUpdate ? L("Stop updating automatically") : L("Update automatically"),
+                          systemImage: i.autoUpdate ? "pause.circle" : "arrow.triangle.2.circlepath")
+                }
+                Button(role: .destructive) { state.removeTweak(i) } label: { Label(L("Remove"), systemImage: "trash") }
+            }
+            Button { UIPasteboard.general.string = tweak.downloadURL } label: { Label(L("Copy link"), systemImage: "doc.on.doc") }
+        }
+    }
+
+    var targetsText: String {
+        if tweak.targets.isEmpty || tweak.targets.contains("*") { return tweak.developer.isEmpty ? L("Any app") : tweak.developer }
+        let names = tweak.targets.map { id in state.sources.flatMap { $0.apps }.first { $0.bundleID == id }?.name ?? id }
+        return LF("For %@", names.joined(separator: ", "))
     }
 }

@@ -66,11 +66,12 @@ struct RootView: View {
             SignView(app: app).environmentObject(state)
         }
         .onChange(of: phase) { p in
-            if p == .active { Task { await state.scanInbox() } }
+            if p == .active { Task { await state.scanInbox(); await state.autoRefreshTweaks() } }
         }
         .task {
             if Diagnostics.enabled { await Diagnostics.run(state) }
             await state.scanInbox()
+            await state.autoRefreshTweaks()
             if state.certificates.contains(where: { $0.ocspChecked == nil || $0.ocspChecked! < Date().addingTimeInterval(-3600) }) {
                 await state.refreshAllOCSP()
             }

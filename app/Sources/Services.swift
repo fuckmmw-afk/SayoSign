@@ -151,6 +151,49 @@ enum RepoParser {
         return 0
     }
 
+    static let tweakExtensions: Set<String> = ["dylib", "deb"]
+
+    static func isTweakURL(_ s: String) -> Bool {
+        guard let u = URL(string: s) else { return false }
+        return tweakExtensions.contains(u.pathExtension.lowercased())
+    }
+
+    static func strings(_ d: [String: Any], _ keys: [String]) -> [String] {
+        for k in keys {
+            if let a = d[k] as? [String], !a.isEmpty { return a }
+            if let s = d[k] as? String, !s.isEmpty {
+                return s.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+            }
+        }
+        return []
+    }
+
+    static func parseTweak(_ t: [String: Any], sourceID: UUID, defaultTargets: [String]) -> RepoTweak? {
+        let versions = t["versions"] as? [[String: Any]] ?? []
+        let latest = versions.first ?? [:]
+        var download = str(latest, ["downloadURL", "down"])
+        if download.isEmpty { download = str(t, ["downloadURL", "down", "download", "url", "link"]) }
+        if download.isEmpty { return nil }
+        let name = str(t, ["name", "Name"])
+        var ident = str(t, ["identifier", "bundleIdentifier", "bundleID", "bundleId", "package", "id"])
+        if ident.isEmpty { ident = name.isEmpty ? (URL(string: download)?.lastPathComponent ?? download) : name.lowercased() }
+        var version = str(latest, ["version"])
+        if version.isEmpty { version = str(t, ["version", "Version"]) }
+        var date = str(latest, ["date"])
+        if date.isEmpty { date = str(t, ["versionDate", "date"]) }
+        var desc = str(t, ["localizedDescription", "description", "versionDescription", "subtitle"])
+        if desc.isEmpty { desc = str(latest, ["localizedDescription"]) }
+        var size = int(latest, ["size"])
+        if size == 0 { size = int(t, ["size"]) }
+        var targets = strings(t, ["targets", "targetBundleIDs", "targetBundleIdentifiers", "bundleIDs", "for", "target"])
+        if targets.isEmpty { targets = defaultTargets }
+        return RepoTweak(sourceID: sourceID, identifier: ident,
+                         name: name.isEmpty ? (URL(string: download)?.deletingPathExtension().lastPathComponent ?? ident) : name,
+                         developer: str(t, ["developerName", "dev", "developer", "author"]),
+                         description: desc, iconURL: str(t, ["iconURL", "icon", "iconUrl"]),
+                         version: version, date: date, downloadURL: download, size: size, targets: targets)
+    }
+
     static func parse(_ json: Any, url: URL, id: UUID) -> RepoSource {
         var root: [String: Any] = [:]
         var appsRaw: [[String: Any]] = []
@@ -159,7 +202,7 @@ enum RepoParser {
             if let a = d["apps"] as? [[String: Any]] { appsRaw = a }
             else if let a = d["Apps"] as? [[String: Any]] { appsRaw = a }
             else {
-                for (k, v) in d where k != "META" {
+                for (k, v) in d where !["META", "tweaks", "Tweaks", "news"].contains(k) {
                     if let a = v as? [[String: Any]] { appsRaw += a }
                 }
             }
@@ -169,12 +212,26 @@ enum RepoParser {
         let meta = root["META"] as? [String: Any] ?? [:]
         let name = str(root, ["name", "Name"]).isEmpty ? (str(meta, ["repoName", "name"]).isEmpty ? (url.host ?? "Source") : str(meta, ["repoName", "name"])) : str(root, ["name", "Name"])
         var apps: [RepoApp] = []
+        var tweaks: [RepoTweak] = []
+        for t in (root["tweaks"] as? [[String: Any]]) ?? (root["Tweaks"] as? [[String: Any]]) ?? [] {
+            if let tw = parseTweak(t, sourceID: id, defaultTargets: []) { tweaks.append(tw) }
+        }
         for a in appsRaw {
             let versions = a["versions"] as? [[String: Any]] ?? []
             let latest = versions.first ?? [:]
             var download = str(latest, ["downloadURL", "down"])
             if download.isEmpty { download = str(a, ["downloadURL", "down", "download", "url", "link"]) }
             if download.isEmpty { continue }
+            let bundleID = str(a, ["bundleIdentifier", "bundleID", "bundleId"])
+            // An entry whose file is a .dylib/.deb (or marked as a tweak) is a tweak, not an app.
+            let kind = str(a, ["type", "kind"]).lowercased()
+            if isTweakURL(download) || kind == "tweak" || kind == "dylib" {
+                if let tw = parseTweak(a, sourceID: id, defaultTargets: []) { tweaks.append(tw) }
+                continue
+            }
+            for t in (a["tweaks"] as? [[String: Any]]) ?? [] {
+                if let tw = parseTweak(t, sourceID: id, defaultTargets: bundleID.isEmpty ? [] : [bundleID]) { tweaks.append(tw) }
+            }
             var version = str(latest, ["version"])
             if version.isEmpty { version = str(a, ["version", "Version"]) }
             var date = str(latest, ["date"])
@@ -185,15 +242,18 @@ enum RepoParser {
             if size == 0 { size = int(a, ["size"]) }
             let shots = (a["screenshotURLs"] as? [String]) ?? ((a["screenshots"] as? [Any])?.compactMap { ($0 as? String) ?? (($0 as? [String: Any])?["imageURL"] as? String) } ?? [])
             apps.append(RepoApp(sourceID: id, name: str(a, ["name", "Name"]),
-                                bundleID: str(a, ["bundleIdentifier", "bundleID", "bundleId"]),
+                                bundleID: bundleID,
                                 developer: str(a, ["developerName", "dev", "developer"]),
                                 subtitle: str(a, ["subtitle"]), description: desc,
                                 iconURL: str(a, ["iconURL", "icon", "iconUrl"]),
                                 version: version, date: date, downloadURL: download, size: size,
                                 tint: a["tintColor"] as? String, screenshots: shots))
         }
+        // One entry per identifier: the first listing wins.
+        var seen = Set<String>()
+        tweaks = tweaks.filter { seen.insert($0.identifier).inserted }
         return RepoSource(id: id, url: url.absoluteString, name: name, iconURL: str(root, ["iconURL", "icon"]),
-                          lastRefresh: Date(), apps: apps)
+                          lastRefresh: Date(), apps: apps, tweaks: tweaks)
     }
 }
 

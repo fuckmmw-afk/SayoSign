@@ -350,3 +350,22 @@
 "Type it in Settings → Developer Mode." = "请在“设置 → 开发者模式”中输入。";
 "Code copied" = "已复制代码";
 "Copy code" = "复制代码";
+
+/* Tweaks from sources */
+"Apps" = "应用";
+"Update" = "更新";
+"Installed" = "已下载";
+"Have %@" = "已有 %@";
+"Any app" = "任意应用";
+"For %@" = "适用于 %@";
+"Tweaks for this app" = "此应用的插件";
+"Stop updating automatically" = "停止自动更新";
+"Update automatically" = "自动更新";
+"From source" = "来自软件源";
+"Tweaks from sources" = "软件源中的插件";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for." = "从软件源获取的插件（.dylib、.deb）会在刷新软件源时更新，并在签名对应应用时自动添加。";
+"Update tweaks automatically" = "自动更新插件";
+"Attach tweaks to their apps" = "自动为对应应用添加插件";
+"Check for tweak updates" = "检查插件更新";
+"Tweaks updated: %@" = "插件已更新：%@";
+"%@ is not a .dylib or .deb" = "%@ 不是 .dylib 或 .deb";

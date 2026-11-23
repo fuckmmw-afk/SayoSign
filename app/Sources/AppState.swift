@@ -31,6 +31,8 @@ struct PersistedState: Codable {
     var certificates: [StoredCertificate] = []
     var sources: [RepoSource] = []
     var settings = AppSettings()
+    /// Optional so state saved by older builds still decodes.
+    var tweaks: [InstalledTweak]? = nil
 }
 
 @MainActor
@@ -41,6 +43,7 @@ final class AppState: ObservableObject {
     @Published var signed: [SignedApp] = []
     @Published var certificates: [StoredCertificate] = []
     @Published var sources: [RepoSource] = []
+    @Published var installedTweaks: [InstalledTweak] = []
     @Published var settings = AppSettings() { didSet { if settings != oldValue { save() } } }
     @Published var downloads: [DownloadTask] = []
     @Published var toast: String?
@@ -49,6 +52,7 @@ final class AppState: ObservableObject {
     @Published var tab = 0
 
     private var loading = false
+    var lastTweakCheck: Date?
 
     init() { load() }
 
@@ -61,12 +65,13 @@ final class AppState: ObservableObject {
         signed = s.signed.filter { Paths.fm.fileExists(atPath: ipaURL($0).path) }
         certificates = s.certificates
         sources = s.sources
+        installedTweaks = (s.tweaks ?? []).filter { Paths.fm.fileExists(atPath: Paths.tweaks.appendingPathComponent($0.file).path) }
         settings = s.settings
     }
 
     func save() {
         if loading { return }
-        let s = PersistedState(library: library, signed: signed, certificates: certificates, sources: sources, settings: settings)
+        let s = PersistedState(library: library, signed: signed, certificates: certificates, sources: sources, settings: settings, tweaks: installedTweaks)
         if let data = try? JSONEncoder().encode(s) {
             try? data.write(to: Paths.stateFile, options: .atomic)
         }
@@ -439,6 +444,8 @@ final class AppState: ObservableObject {
             }
         }
         save()
+        lastTweakCheck = Date()
+        if settings.autoUpdateTweaks { await updateTweaks() }
     }
 
     func performSign(app: LibraryApp, cert c: StoredCertificate, options: SayoCore.SignOptions, tweaks: [URL],

@@ -84,6 +84,18 @@ docs/   website and AltStore source (GitHub Pages)
 
 Add `https://murk-sus.github.io/SayoSign/source.json` to AltStore, SideStore, Feather or SayoSign itself.
 
+## 🧩 Tweaks in sources
+
+A source can list tweaks (.dylib / .deb) next to its IPAs. SayoSign shows them under Sources → Tweaks, downloads new versions whenever sources refresh (every 30 minutes when the app opens, or on pull to refresh), and adds a tweak by itself when you sign the app it is made for.
+
+Three ways to list a tweak; other signers ignore these fields:
+
+- a `tweaks` array inside an app entry (targets default to that app's bundle ID);
+- an `apps` entry whose download is a `.dylib`/`.deb` (or has `"type": "tweak"`), with optional `targets`;
+- a top-level `tweaks` array; each entry has `targets`, a list of bundle IDs or `"*"`.
+
+Fields: `name`, `identifier`, `version`, `downloadURL` (or `versions[0]`), `targets`, and optionally `iconURL`, `localizedDescription`, `size`, `developerName`. A tweak updates when its `version` or link changes. Turn it off in Settings → Tweaks from sources, or per tweak with a long press.
+
 ## 🔍 See also
 
 [IPALens](https://murk-sus.github.io/IPALens/) — check any IPA, .p12, profile or .deb in your browser: decrypted or not, UDID in profile, p12 ↔ profile match.

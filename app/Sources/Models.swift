@@ -66,6 +66,49 @@ struct RepoSource: Codable, Identifiable, Hashable {
     var iconURL: String?
     var lastRefresh: Date?
     var apps: [RepoApp]
+    /// Tweaks (.dylib / .deb) the source lists. Optional so older saved state still decodes.
+    var tweaks: [RepoTweak]? = nil
+}
+
+/// A tweak offered by a source: a top-level `tweaks` entry, an app's own `tweaks` entry,
+/// or an `apps` entry whose download is a .dylib or .deb.
+struct RepoTweak: Codable, Identifiable, Hashable {
+    var id: String { sourceID.uuidString + "|" + identifier }
+    var sourceID: UUID
+    var identifier: String
+    var name: String
+    var developer: String
+    var description: String
+    var iconURL: String
+    var version: String
+    var date: String
+    var downloadURL: String
+    var size: Int64
+    /// Bundle IDs of the apps this tweak is meant for ("*" = any app).
+    var targets: [String]
+
+    func fits(_ bundleID: String) -> Bool {
+        targets.contains { $0 == "*" || $0.caseInsensitiveCompare(bundleID) == .orderedSame }
+    }
+}
+
+/// A tweak downloaded from a source; SayoSign keeps it up to date and attaches it when signing its apps.
+struct InstalledTweak: Codable, Identifiable, Hashable {
+    var id: String { identifier }
+    var identifier: String
+    var sourceID: UUID
+    var name: String
+    var version: String
+    /// File name inside Paths.tweaks.
+    var file: String
+    var downloadURL: String
+    var targets: [String]
+    var autoUpdate: Bool
+    var updated: Date
+
+    func fits(_ bundleID: String) -> Bool {
+        targets.contains { $0 == "*" || $0.caseInsensitiveCompare(bundleID) == .orderedSame }
+    }
 }
 
 struct RepoApp: Codable, Identifiable, Hashable {
@@ -106,6 +149,10 @@ struct AppSettings: Codable, Equatable {
     var installMethod = 0
     /// LocalDevVPN's address of this iPhone.
     var tunnelAddress = "10.7.0.1"
+    /// Download new versions of tweaks taken from sources whenever sources refresh.
+    var autoUpdateTweaks = true
+    /// Pre-select a source tweak when signing an app it targets, and fetch it with that app.
+    var autoAttachTweaks = true
     static let defaultManifestService = "https://sayosign.afk9659-0de.workers.dev"
 
     init() {}
@@ -130,6 +177,8 @@ struct AppSettings: Codable, Equatable {
         manifestService = (try? c.decodeIfPresent(String.self, forKey: .manifestService)) ?? d.manifestService
         installMethod = (try? c.decodeIfPresent(Int.self, forKey: .installMethod)) ?? d.installMethod
         tunnelAddress = (try? c.decodeIfPresent(String.self, forKey: .tunnelAddress)) ?? d.tunnelAddress
+        autoUpdateTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoUpdateTweaks)) ?? d.autoUpdateTweaks
+        autoAttachTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoAttachTweaks)) ?? d.autoAttachTweaks
         // Servers Apple now rejects are switched to a working one.
         if Anisette.rejectedServers.contains(anisetteURL) || anisetteURL.trimmingCharacters(in: .whitespaces).isEmpty {
             anisetteURL = Anisette.defaultServer

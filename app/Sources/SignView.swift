@@ -28,6 +28,7 @@ struct SignView: View {
     @State private var done: SignedApp?
     @State private var error: String?
     @State private var setup = false
+    @State private var attached = false
 
     enum PickKind: Identifiable {
         case icon, tweak, entitlements
@@ -112,6 +113,10 @@ struct SignView: View {
                         HStack {
                             Image(systemName: t.pathExtension == "deb" ? "shippingbox.fill" : "puzzlepiece.extension.fill").foregroundColor(Theme.rose)
                             Text(t.lastPathComponent).lineLimit(1)
+                            if let i = state.installed(file: t) {
+                                Spacer()
+                                Text(i.version.isEmpty ? L("From source") : "v" + i.version).font(.caption).foregroundColor(.secondary)
+                            }
                         }
                     }
                     .onDelete { tweaks.remove(atOffsets: $0) }
@@ -207,6 +212,12 @@ struct SignView: View {
             .onAppear {
                 removePlugins = state.settings.autoRemovePlugins
                 removeWatch = state.settings.removeWatchApps
+                if !attached {
+                    attached = true
+                    if state.settings.autoAttachTweaks {
+                        for u in state.tweakFiles(for: app.bundleID) where !tweaks.contains(u) { tweaks.append(u) }
+                    }
+                }
             }
         }
         .interactiveDismissDisabled(signing)

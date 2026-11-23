@@ -351,3 +351,22 @@
 "Type it in Settings → Developer Mode." = "Введи его в Настройки → Режим разработчика.";
 "Code copied" = "Код скопирован";
 "Copy code" = "Скопировать код";
+
+/* Tweaks from sources */
+"Apps" = "Приложения";
+"Update" = "Обновить";
+"Installed" = "Скачан";
+"Have %@" = "Есть %@";
+"Any app" = "Любое приложение";
+"For %@" = "Для %@";
+"Tweaks for this app" = "Твики для этого приложения";
+"Stop updating automatically" = "Не обновлять автоматически";
+"Update automatically" = "Обновлять автоматически";
+"From source" = "Из источника";
+"Tweaks from sources" = "Твики из источников";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for." = "Твики (.dylib, .deb), скачанные из источника, обновляются при обновлении источников и сами добавляются, когда вы подписываете приложение, для которого они сделаны.";
+"Update tweaks automatically" = "Обновлять твики автоматически";
+"Attach tweaks to their apps" = "Подключать твики к их приложениям";
+"Check for tweak updates" = "Проверить обновления твиков";
+"Tweaks updated: %@" = "Твики обновлены: %@";
+"%@ is not a .dylib or .deb" = "%@ — не .dylib и не .deb";

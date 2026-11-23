@@ -74,6 +74,41 @@ make
 
 Добавь `https://murk-sus.github.io/SayoSign/source.json` в AltStore, SideStore, Feather или в сам SayoSign.
 
+## 🧩 Твики в источниках
+
+Источник может отдавать не только .ipa, но и твики (.dylib / .deb). SayoSign показывает их на вкладке «Твики» в «Источниках», сам скачивает новые версии при обновлении источников (раз в 30 минут при открытии приложения или по свайпу вниз) и сам добавляет твик при подписи приложения, для которого он сделан.
+
+Три способа описать твик — другие подписчики эти поля просто игнорируют:
+
+```json
+{
+  "name": "Мой репо",
+  "apps": [
+    {
+      "name": "Telegram", "bundleIdentifier": "ph.telegra.Telegraph",
+      "downloadURL": "https://example.com/Telegram.ipa", "version": "12.2",
+      "tweaks": [
+        { "name": "MyTweak", "identifier": "com.me.mytweak", "version": "1.4",
+          "downloadURL": "https://example.com/mytweak.dylib" }
+      ]
+    },
+    { "name": "Другой твик", "identifier": "com.me.other", "version": "2.0",
+      "downloadURL": "https://example.com/other.dylib", "targets": ["com.spotify.client"] }
+  ],
+  "tweaks": [
+    { "name": "Общий твик", "identifier": "com.me.any", "version": "0.3",
+      "downloadURL": "https://example.com/any.deb", "targets": ["*"],
+      "versions": [{ "version": "0.3", "date": "2026-11-23", "downloadURL": "https://example.com/any.deb" }] }
+  ]
+}
+```
+
+- `tweaks` внутри приложения — твик для этого приложения (`targets` по умолчанию — его bundle ID);
+- запись в `apps` с файлом `.dylib`/`.deb` (или `"type": "tweak"`) считается твиком;
+- верхнеуровневый `tweaks` с `targets` (bundle ID или `"*"` — подходит любому, но сам не подключается).
+
+Обновление определяется по `identifier`: если поменялись `version` или ссылка, файл скачивается заново. Отключить можно в Настройках → «Твики из источников» или для одного твика долгим нажатием.
+
 ## 🔍 Ещё
 
 [IPALens](https://murk-sus.github.io/IPALens/?lang=ru) — проверка IPA, .p12, профиля или .deb прямо в браузере: расшифрован ли, есть ли UDID в профиле, подходит ли p12 к профилю.

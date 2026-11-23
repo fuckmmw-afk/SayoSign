@@ -350,3 +350,22 @@
 "Type it in Settings → Developer Mode." = "Type it in Settings → Developer Mode.";
 "Code copied" = "Code copied";
 "Copy code" = "Copy code";
+
+/* Tweaks from sources */
+"Apps" = "Apps";
+"Update" = "Update";
+"Installed" = "Installed";
+"Have %@" = "Have %@";
+"Any app" = "Any app";
+"For %@" = "For %@";
+"Tweaks for this app" = "Tweaks for this app";
+"Stop updating automatically" = "Stop updating automatically";
+"Update automatically" = "Update automatically";
+"From source" = "From source";
+"Tweaks from sources" = "Tweaks from sources";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for." = "Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for.";
+"Update tweaks automatically" = "Update tweaks automatically";
+"Attach tweaks to their apps" = "Attach tweaks to their apps";
+"Check for tweak updates" = "Check for tweak updates";
+"Tweaks updated: %@" = "Tweaks updated: %@";
+"%@ is not a .dylib or .deb" = "%@ is not a .dylib or .deb";
