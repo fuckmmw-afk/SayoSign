@@ -74,53 +74,119 @@ final class IconCache {
     }
 }
 
+/// Downloads run in a background URLSession: they go on while SayoSign is in the background
+/// (or even closed), and a file that finishes while nobody waits for it is kept and handled
+/// at the next launch (see AppState.processPendingDownloads).
 final class Downloader: NSObject, URLSessionDownloadDelegate {
-    private var continuation: CheckedContinuation<URL, Error>?
-    private let progress: (Double) -> Void
-    private var session: URLSession!
+    static let shared = Downloader()
+    static let identifier = "dev.murk.sayosign.downloads"
 
-    private init(progress: @escaping (Double) -> Void) {
-        self.progress = progress
-        super.init()
-        session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+    /// Given by iOS when it wakes SayoSign for finished background downloads.
+    var backgroundCompletion: (() -> Void)?
+
+    private struct Waiter {
+        let continuation: CheckedContinuation<URL, Error>
+        let progress: (Double) -> Void
+    }
+    private let lock = NSLock()
+    private var waiters: [Int: Waiter] = [:]
+
+    lazy var session: URLSession = {
+        let c = URLSessionConfiguration.background(withIdentifier: Downloader.identifier)
+        c.sessionSendsLaunchEvents = true
+        c.isDiscretionary = false
+        c.allowsCellularAccess = true
+        c.httpAdditionalHeaders = ["User-Agent": "SayoSign/1.0"]
+        return URLSession(configuration: c, delegate: self, delegateQueue: nil)
+    }()
+
+    /// `tag` says what the file is for if SayoSign was closed meanwhile: "ipa|<name>|<host>" or "tweak|<identifier>".
+    static func download(_ url: URL, tag: String, progress: @escaping (Double) -> Void) async throws -> URL {
+        try await shared.start(url, tag: tag, progress: progress)
     }
 
-    static func download(_ url: URL, progress: @escaping (Double) -> Void) async throws -> URL {
-        let d = Downloader(progress: progress)
-        return try await withCheckedThrowingContinuation { c in
-            d.continuation = c
+    private func start(_ url: URL, tag: String, progress: @escaping (Double) -> Void) async throws -> URL {
+        try await withCheckedThrowingContinuation { c in
             var req = URLRequest(url: url)
             req.setValue("SayoSign/1.0", forHTTPHeaderField: "User-Agent")
-            d.session.downloadTask(with: req).resume()
+            let task = session.downloadTask(with: req)
+            task.taskDescription = tag
+            lock.lock()
+            waiters[task.taskIdentifier] = Waiter(continuation: c, progress: progress)
+            lock.unlock()
+            task.resume()
         }
+    }
+
+    private func take(_ id: Int) -> Waiter? {
+        lock.lock()
+        defer { lock.unlock() }
+        return waiters.removeValue(forKey: id)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        if totalBytesExpectedToWrite > 0 { progress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) }
+        guard totalBytesExpectedToWrite > 0 else { return }
+        lock.lock()
+        let w = waiters[downloadTask.taskIdentifier]
+        lock.unlock()
+        w?.progress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        let waiter = take(downloadTask.taskIdentifier)
         if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            continuation?.resume(throwing: SayoError("HTTP \(http.statusCode)"))
-            continuation = nil
+            waiter?.continuation.resume(throwing: SayoError("HTTP \(http.statusCode)"))
             return
         }
-        let dst = Paths.work.appendingPathComponent(UUID().uuidString)
+        // The file at `location` is deleted when this method returns.
+        let dir = waiter == nil ? PendingDownloads.dir : Paths.work
+        let dst = dir.appendingPathComponent(UUID().uuidString)
         do {
             try FileManager.default.moveItem(at: location, to: dst)
-            continuation?.resume(returning: dst)
         } catch {
-            continuation?.resume(throwing: error)
+            waiter?.continuation.resume(throwing: error)
+            return
         }
-        continuation = nil
+        if let w = waiter {
+            w.continuation.resume(returning: dst)
+        } else {
+            PendingDownloads.add(file: dst.lastPathComponent, tag: downloadTask.taskDescription ?? "")
+            Task { @MainActor in await AppState.shared.processPendingDownloads() }
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let e = error {
-            continuation?.resume(throwing: e)
-            continuation = nil
+        if let e = error { take(task.taskIdentifier)?.continuation.resume(throwing: e) }
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async {
+            self.backgroundCompletion?()
+            self.backgroundCompletion = nil
         }
-        session.finishTasksAndInvalidate()
+    }
+}
+
+/// Files that finished downloading while SayoSign was not waiting for them.
+enum PendingDownloads {
+    static let key = "pendingDownloads"
+    static var dir: URL { Paths.dir("Pending") }
+
+    static func add(file: String, tag: String) {
+        let d = UserDefaults.standard
+        var list = d.array(forKey: key) as? [[String: String]] ?? []
+        list.append(["file": file, "tag": tag])
+        d.set(list, forKey: key)
+    }
+
+    static func takeAll() -> [(file: URL, tag: String)] {
+        let d = UserDefaults.standard
+        let list = d.array(forKey: key) as? [[String: String]] ?? []
+        d.removeObject(forKey: key)
+        return list.compactMap { e in
+            guard let f = e["file"] else { return nil }
+            return (dir.appendingPathComponent(f), e["tag"] ?? "")
+        }
     }
 }
 

@@ -277,7 +277,7 @@ final class AppState: ObservableObject {
         downloads.append(task)
         let tid = task.id
         do {
-            let file = try await Downloader.download(url) { f in
+            let file = try await Downloader.download(url, tag: "ipa|\(name)|\(url.host ?? "web")") { f in
                 Task { @MainActor in
                     if let i = AppState.shared.downloads.firstIndex(where: { $0.id == tid }) {
                         AppState.shared.downloads[i].progress = f
@@ -293,6 +293,26 @@ final class AppState: ObservableObject {
         } catch {
             downloads.removeAll { $0.id == tid }
             show(error.localizedDescription)
+        }
+    }
+
+    /// Downloads that finished while SayoSign was closed or suspended.
+    func processPendingDownloads() async {
+        for (file, tag) in PendingDownloads.takeAll() {
+            guard Paths.fm.fileExists(atPath: file.path) else { continue }
+            let parts = tag.components(separatedBy: "|")
+            if parts.first == "tweak", parts.count > 1, let t = allRepoTweaks.first(where: { $0.identifier == parts[1] }) {
+                do {
+                    try finishTweak(file, t)
+                    notifyTweaksUpdated([t.version.isEmpty ? t.name : "\(t.name) \(t.version)"])
+                } catch { show(error.localizedDescription) }
+            } else if parts.first == "ipa" {
+                let renamed = file.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".ipa")
+                try? Paths.fm.moveItem(at: file, to: renamed)
+                await importIPA(renamed, source: parts.count > 2 ? parts[2] : "web")
+                try? Paths.fm.removeItem(at: renamed)
+            }
+            try? Paths.fm.removeItem(at: file)
         }
     }
 
@@ -498,6 +518,9 @@ final class AppState: ObservableObject {
                         o.injections.append(t)
                     }
                 }
+                // Tweaks replaced by a new file of the same name are overwritten by the injection itself.
+                let injectedNames = Set(o.injections.map { $0.lastPathComponent.lowercased() })
+                try Embedded.remove(o.removeEmbedded.filter { !injectedNames.contains($0.lowercased()) }, from: appCopy)
                 if !o.injections.isEmpty, let fw = Bundle.main.privateFrameworksURL?.appendingPathComponent("CydiaSubstrate.framework"),
                    fm.fileExists(atPath: fw.path) {
                     o.hookFramework = fw

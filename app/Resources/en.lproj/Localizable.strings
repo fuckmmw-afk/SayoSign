@@ -377,3 +377,16 @@
 "Downloaded" = "Downloaded";
 "not in sources" = "not in sources";
 "not downloaded" = "not downloaded";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, also in the background, and added by themselves when you sign the app they are made for. An update deletes the tweak's older copies." = "Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, also in the background, and added by themselves when you sign the app they are made for. An update deletes the tweak's older copies.";
+"Already in the app" = "Already in the app";
+"Tweaks built into this IPA earlier. Turn one off to take it out, or replace it with a newer file or the version from a source." = "Tweaks built into this IPA earlier. Turn one off to take it out, or replace it with a newer file or the version from a source.";
+"will be replaced with the chosen file" = "will be replaced with the chosen file";
+"will be replaced with %@" = "will be replaced with %@";
+"will be removed" = "will be removed";
+"v%@ in sources" = "v%@ in sources";
+"loaded by another tweak" = "loaded by another tweak";
+"Replace with %@ from source" = "Replace with %@ from source";
+"Replace with the saved copy" = "Replace with the saved copy";
+"Replace with a file…" = "Replace with a file…";
+"Keep as it is" = "Keep as it is";
+"Tweaks updated" = "Tweaks updated";

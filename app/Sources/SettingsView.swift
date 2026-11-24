@@ -107,7 +107,7 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text(L("Tweaks from sources")),
-                        footer: Text(L("Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, and added by themselves when you sign the app they are made for."))) {
+                        footer: Text(L("Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, also in the background, and added by themselves when you sign the app they are made for. An update deletes the tweak's older copies."))) {
                     Toggle(L("Update tweaks automatically"), isOn: $state.settings.autoUpdateTweaks)
                     Toggle(L("Attach tweaks to their apps"), isOn: $state.settings.autoAttachTweaks)
                     Button {

@@ -97,6 +97,8 @@ int macho_add_dylib(const char *path, const char *dylib_path, bool weak);
 int macho_change_dylib(const char *path, const char *from, const char *to);
 int macho_list_dylibs(const char *path, strlist *out);
 int macho_add_rpath(const char *path, const char *rpath);
+int macho_remove_dylib(const char *path, const char *name);
+bool macho_path_names(const char *p, const char *name);
 
 int cms_sign(const sayo_identity *id, const uint8_t *cd, size_t cd_len,
              const uint8_t cd_hash256[32], sayo_buf *out);

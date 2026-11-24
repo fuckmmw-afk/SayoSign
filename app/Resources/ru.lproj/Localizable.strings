@@ -378,3 +378,16 @@
 "Downloaded" = "Скачан";
 "not in sources" = "нет в источниках";
 "not downloaded" = "не скачан";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, also in the background, and added by themselves when you sign the app they are made for. An update deletes the tweak's older copies." = "Твики (.dylib, .deb) из источников обновляются при обновлении источников, в том числе в фоне, и сами добавляются при подписи своего приложения. После обновления старые копии твика удаляются.";
+"Already in the app" = "Уже вшиты в приложение";
+"Tweaks built into this IPA earlier. Turn one off to take it out, or replace it with a newer file or the version from a source." = "Твики, которые уже вшиты в этот IPA. Выключите, чтобы убрать, или замените через «…» новым файлом или версией из источника.";
+"will be replaced with the chosen file" = "заменится выбранным файлом";
+"will be replaced with %@" = "заменится на %@";
+"will be removed" = "будет удалён";
+"v%@ in sources" = "в источнике v%@";
+"loaded by another tweak" = "подгружается другим твиком";
+"Replace with %@ from source" = "Заменить на %@ из источника";
+"Replace with the saved copy" = "Заменить сохранённой копией";
+"Replace with a file…" = "Заменить файлом…";
+"Keep as it is" = "Оставить как есть";
+"Tweaks updated" = "Твики обновлены";

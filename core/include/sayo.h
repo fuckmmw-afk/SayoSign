@@ -107,6 +107,11 @@ int sayo_cert_parse(const uint8_t *der, size_t len, sayo_cert_info *ci);
 int sayo_cert_issued_by(const uint8_t *cert, size_t cl, const uint8_t *issuer, size_t il);
 size_t sayo_apple_chain(const uint8_t *leaf, size_t leaf_len, const uint8_t **out, size_t *out_len, size_t cap);
 int sayo_macho_inject(const char *binary, const char *load_path, int weak);
+/* Drops every load command naming `name` ("x.dylib" matches any ".../x.dylib";
+ * "X.framework" matches any path through "X.framework/"), in every slice. */
+int sayo_macho_remove_dylib(const char *binary, const char *name);
+/* Load paths of the first slice (LC_ID_DYLIB excluded); free with sayo_free_paths. */
+int sayo_macho_list_dylibs(const char *binary, char ***out_paths, size_t *out_count);
 int sayo_zstd_decode(const uint8_t *p, size_t n, sayo_buf *out);
 
 int sayo_x509_tbs(uint64_t serial, const char *issuer_cn, const char *subject_cn, const char *org,

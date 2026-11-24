@@ -253,6 +253,24 @@ enum SayoCore {
         return out
     }
 
+    /// Load paths of a Mach-O's first slice.
+    static func loadPaths(_ binary: URL) -> [String] {
+        var paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+        var count = 0
+        guard sayo_macho_list_dylibs(binary.path, &paths, &count) == 0 else { return [] }
+        var out: [String] = []
+        if let paths = paths {
+            for i in 0..<count { if let p = paths[i] { out.append(String(cString: p)) } }
+        }
+        sayo_free_paths(paths, count)
+        return out
+    }
+
+    /// Drops the load commands naming `name` ("x.dylib" or "X.framework").
+    static func removeDylib(_ binary: URL, name: String) throws {
+        if sayo_macho_remove_dylib(binary.path, name) != 0 { throw SayoError.last("Cannot edit \(binary.lastPathComponent)") }
+    }
+
     struct SignOptions {
         var bundleID = ""
         var displayName = ""
@@ -261,6 +279,8 @@ enum SayoCore {
         var iconPNG: URL?
         var entitlements: URL?
         var injections: [URL] = []
+        /// Tweaks already in the app to take out (file names in Frameworks, e.g. "x.dylib").
+        var removeEmbedded: [String] = []
         var hookFramework: URL?
         var removePlugins = false
         var removeWatch = false

@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SayoSignApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var state = AppState.shared
     @StateObject private var certImport = CertificateImportCoordinator.shared
 
@@ -66,10 +67,12 @@ struct RootView: View {
             SignView(app: app).environmentObject(state)
         }
         .onChange(of: phase) { p in
-            if p == .active { Task { await state.scanInbox(); await state.autoRefreshTweaks() } }
+            if p == .active { Task { await state.processPendingDownloads(); await state.scanInbox(); await state.autoRefreshTweaks() } }
+            if p == .background { BackgroundRefresh.schedule() }
         }
         .task {
             if Diagnostics.enabled { await Diagnostics.run(state) }
+            await state.processPendingDownloads()
             await state.scanInbox()
             await state.autoRefreshTweaks()
             if state.certificates.contains(where: { $0.ocspChecked == nil || $0.ocspChecked! < Date().addingTimeInterval(-3600) }) {

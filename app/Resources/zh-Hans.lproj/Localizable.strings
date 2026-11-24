@@ -377,3 +377,16 @@
 "Downloaded" = "已下载";
 "not in sources" = "不在软件源中";
 "not downloaded" = "未下载";
+"Tweaks (.dylib, .deb) taken from a source are updated when sources refresh, also in the background, and added by themselves when you sign the app they are made for. An update deletes the tweak's older copies." = "来自软件源的插件（.dylib、.deb）会在刷新软件源时更新（包括在后台），并在签名对应应用时自动添加。更新后会删除插件的旧副本。";
+"Already in the app" = "已在应用中";
+"Tweaks built into this IPA earlier. Turn one off to take it out, or replace it with a newer file or the version from a source." = "此 IPA 中已注入的插件。关闭即可移除，或替换为新文件或软件源中的版本。";
+"will be replaced with the chosen file" = "将替换为所选文件";
+"will be replaced with %@" = "将替换为 %@";
+"will be removed" = "将被移除";
+"v%@ in sources" = "软件源中为 v%@";
+"loaded by another tweak" = "由其他插件加载";
+"Replace with %@ from source" = "替换为软件源中的 %@";
+"Replace with the saved copy" = "替换为已保存的副本";
+"Replace with a file…" = "用文件替换…";
+"Keep as it is" = "保持不变";
+"Tweaks updated" = "插件已更新";

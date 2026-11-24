@@ -365,6 +365,44 @@ int macho_add_rpath(const char *path, const char *rpath) {
     return edit_all(path, do_rpath, (void *)rpath);
 }
 
+/* A load path names `name` when it is exactly it, ends in "/name", or, for "X.framework",
+ * goes through "X.framework/". */
+bool macho_path_names(const char *p, const char *name) {
+    size_t lp = strlen(p), ln = strlen(name);
+    if (!ln) return false;
+    if (!strcmp(p, name)) return true;
+    if (lp > ln && p[lp - ln - 1] == '/' && !strcmp(p + lp - ln, name)) return true;
+    if (ln > 10 && !strcmp(name + ln - 10, ".framework")) {
+        if (!strncmp(p, name, ln) && p[ln] == '/') return true;
+        for (const char *s = strstr(p, name); s; s = strstr(s + 1, name))
+            if (s > p && s[-1] == '/' && s[ln] == '/') return true;
+    }
+    return false;
+}
+
+static int do_remove(sayo_buf *d, minfo *m, cmdlist *l, void *vctx) {
+    (void)d; (void)m;
+    const char *name = vctx;
+    int changed = 0;
+    for (size_t i = 0; i < l->n;) {
+        uint32_t cmd = le32(l->cmds[i]);
+        if (is_dylib_cmd(cmd) && cmd != LC_ID_DYLIB && macho_path_names(cmd_str(l->cmds[i], l->sizes[i], 8), name)) {
+            free(l->cmds[i]);
+            memmove(l->cmds + i, l->cmds + i + 1, (l->n - i - 1) * sizeof *l->cmds);
+            memmove(l->sizes + i, l->sizes + i + 1, (l->n - i - 1) * sizeof *l->sizes);
+            l->n--;
+            changed = 1;
+        } else {
+            i++;
+        }
+    }
+    return changed;
+}
+
+int macho_remove_dylib(const char *path, const char *name) {
+    return edit_all(path, do_remove, (void *)name);
+}
+
 int macho_list_dylibs(const char *path, strlist *out) {
     mfile f;
     if (mfile_load(path, &f)) return -1;

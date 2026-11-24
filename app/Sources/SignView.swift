@@ -34,9 +34,14 @@ struct SignView: View {
     @State private var tweakBusy: Set<String> = []
     @State private var checking = false
     @State private var allSourceTweaks = false
+    /// Tweaks already built into the app, what to take out and what to swap for another file.
+    @State private var embedded: [EmbeddedTweak] = []
+    @State private var dropEmbedded: Set<String> = []
+    @State private var replacements: [String: URL] = [:]
+    @State private var replacing: String?
 
     enum PickKind: Identifiable {
-        case icon, tweak, entitlements
+        case icon, tweak, entitlements, replace
         var id: Int { hashValue }
     }
 
@@ -113,6 +118,9 @@ struct SignView: View {
                     LabeledField(title: L("Minimum iOS"), text: $minIOS, placeholder: app.minOS)
                 }
 
+                if !embedded.isEmpty {
+                    embeddedSection
+                }
                 if !sourceItems.isEmpty || !state.allRepoTweaks.isEmpty {
                     sourceTweaksSection
                 }
@@ -226,6 +234,11 @@ struct SignView: View {
                 removeWatch = state.settings.removeWatchApps
                 if !attached {
                     attached = true
+                    let dir = state.appURL(app)
+                    Task {
+                        let found = await Task.detached(priority: .userInitiated) { Embedded.scan(app: dir) }.value
+                        embedded = found
+                    }
                     if state.settings.autoAttachTweaks {
                         picked = Set(state.installedTweaks.filter { $0.fits(app.bundleID) }.map { $0.identifier })
                     }
@@ -242,6 +255,7 @@ struct SignView: View {
         case .icon: types = [.png, .jpeg, .image]
         case .tweak: types = [.deb, .dylib, .folder, .data]
         case .entitlements: types = [.xml, .propertyList, .data]
+        case .replace: types = [.dylib, .data]
         }
         FilePicker.shared.pick(types, multiple: kind == .tweak) { urls in
             for u in urls { take(u, kind: kind) }
@@ -344,6 +358,93 @@ struct SignView: View {
         }
     }
 
+    /// The source tweak saved (or to be saved) under this file name.
+    func sourceItem(named name: String) -> SourceItem? {
+        let n = name.lowercased()
+        let all = state.installedTweaks.map { SourceItem(id: $0.identifier, repo: state.latest(for: $0), installed: $0) }
+            + state.allRepoTweaks.filter { state.installed($0) == nil }.map { SourceItem(id: $0.identifier, repo: $0, installed: nil) }
+        return all.first { item in
+            let file = item.installed?.file ?? item.repo.map { state.expectedFileName($0) } ?? ""
+            return file.lowercased() == n
+        }
+    }
+
+    func unpickSource(matching name: String) {
+        if let s = sourceItem(named: name) { picked.remove(s.id) }
+    }
+
+    var embeddedSection: some View {
+        Section(header: Text(L("Already in the app")),
+                footer: Text(L("Tweaks built into this IPA earlier. Turn one off to take it out, or replace it with a newer file or the version from a source."))) {
+            ForEach(embedded) { e in embeddedRow(e) }
+        }
+    }
+
+    func embeddedRow(_ e: EmbeddedTweak) -> some View {
+        let source = sourceItem(named: e.name)
+        let fromSource = source.map { picked.contains($0.id) } ?? false
+        let keep = Binding<Bool>(
+            get: { !dropEmbedded.contains(e.name) || replacements[e.name] != nil || fromSource },
+            set: { v in
+                if v { dropEmbedded.remove(e.name); return }
+                dropEmbedded.insert(e.name)
+                replacements[e.name] = nil
+                unpickSource(matching: e.name)
+            })
+        return HStack(spacing: 10) {
+            Image(systemName: e.isFramework ? "shippingbox" : "puzzlepiece.extension")
+                .foregroundColor(keep.wrappedValue ? Theme.rose : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(e.name).strikethrough(!keep.wrappedValue).lineLimit(1)
+                Group {
+                    if replacements[e.name] != nil {
+                        Text(L("will be replaced with the chosen file")).foregroundColor(.orange)
+                    } else if fromSource, let s = source {
+                        Text(LF("will be replaced with %@", s.name + ((s.repo?.version ?? s.installed?.version).map { $0.isEmpty ? "" : " v" + $0 } ?? ""))).foregroundColor(.orange)
+                    } else if !keep.wrappedValue {
+                        Text(L("will be removed")).foregroundColor(.red)
+                    } else if let s = source, let v = s.repo?.version ?? s.installed?.version {
+                        Text(formatSize(e.size) + " · " + LF("v%@ in sources", v))
+                    } else {
+                        Text(formatSize(e.size) + (e.loaded ? "" : " · " + L("loaded by another tweak")))
+                    }
+                }
+                .font(.caption).foregroundColor(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            Menu {
+                if let s = source, let r = s.repo {
+                    Button {
+                        replacements[e.name] = nil
+                        dropEmbedded.remove(e.name)
+                        picked.insert(s.id)
+                        if s.installed == nil || s.outdated { Task { await fetch(r) } }
+                    } label: { Label(LF("Replace with %@ from source", r.version.isEmpty ? r.name : "v" + r.version), systemImage: "arrow.down.circle") }
+                } else if let s = source, s.installed != nil {
+                    Button {
+                        replacements[e.name] = nil
+                        dropEmbedded.remove(e.name)
+                        picked.insert(s.id)
+                    } label: { Label(L("Replace with the saved copy"), systemImage: "tray.full") }
+                }
+                if !e.isFramework {
+                    Button {
+                        replacing = e.name
+                        pick(.replace)
+                    } label: { Label(L("Replace with a file…"), systemImage: "doc.badge.plus") }
+                }
+                if replacements[e.name] != nil || fromSource || dropEmbedded.contains(e.name) {
+                    Button {
+                        replacements[e.name] = nil
+                        dropEmbedded.remove(e.name)
+                        unpickSource(matching: e.name)
+                    } label: { Label(L("Keep as it is"), systemImage: "arrow.uturn.backward") }
+                }
+            } label: { Image(systemName: "ellipsis.circle").font(.title3) }
+            Toggle("", isOn: keep).labelsHidden()
+        }
+    }
+
     func fetch(_ r: RepoTweak) async {
         tweakBusy.insert(r.identifier)
         let ok = await state.installTweak(r, quiet: true)
@@ -375,6 +476,22 @@ struct SignView: View {
             do {
                 try FileManager.default.copyItem(at: u, to: dst)
                 if !tweaks.contains(dst) { tweaks.append(dst) }
+            } catch {
+                self.error = error.localizedDescription
+            }
+        case .replace:
+            guard let name = replacing else { break }
+            replacing = nil
+            // Saved under the tweak's own name, so it takes the old file's place inside the app.
+            let dir = Paths.work.appendingPathComponent("replace-" + UUID().uuidString, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dst = dir.appendingPathComponent(name)
+            do {
+                try FileManager.default.copyItem(at: u, to: dst)
+                guard AppState.tweakKind(dst) == "dylib" else { throw SayoError(LF("%@ is not a .dylib or .deb", u.lastPathComponent)) }
+                replacements[name] = dst
+                dropEmbedded.remove(name)
+                unpickSource(matching: name)
             } catch {
                 self.error = error.localizedDescription
             }
@@ -420,10 +537,11 @@ struct SignView: View {
         opts.removeURLSchemes = removeSchemes
         opts.fileSharing = fileSharing
         opts.container = inside
+        opts.removeEmbedded = Array(dropEmbedded)
         do {
             let fromSources = state.installedTweaks.filter { picked.contains($0.identifier) }.map(state.tweakURL)
                 .filter { FileManager.default.fileExists(atPath: $0.path) }
-            let all = fromSources + tweaks.filter { !fromSources.contains($0) }
+            let all = fromSources + tweaks.filter { !fromSources.contains($0) } + replacements.values
             let result = try await state.performSign(app: app, cert: c, options: opts, tweaks: all) { f, s in
                 self.progress = f
                 self.stage = s

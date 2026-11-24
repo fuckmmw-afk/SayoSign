@@ -374,6 +374,9 @@ static int inject(const char *app, const char *exe_path, const sayo_sign_options
         if (!file_is_macho(bin)) { sayo_set_error("%s is not a Mach-O library", base); return -1; }
         fix_substrate_refs(bin);
         if (needs_hook(bin)) hook = true;
+        /* The app may already load a tweak of this name from another path (e.g. ESign's
+         * @executable_path/Frameworks/x.dylib): the copy just written replaces it, so one load command. */
+        if (macho_remove_dylib(exe_path, base)) return -1;
         if (macho_add_dylib(exe_path, load, false)) return -1;
     }
     if (hook || (o->inject_count && o->hook_framework_path)) {
@@ -575,6 +578,23 @@ int sayo_sign_ipa(const char *ipa_in, const char *ipa_out, const char *work,
     rmtree(pk);
     rmtree(work);
     return rc;
+}
+
+int sayo_macho_remove_dylib(const char *binary, const char *name) {
+    return macho_remove_dylib(binary, name);
+}
+
+int sayo_macho_list_dylibs(const char *binary, char ***out_paths, size_t *out_count) {
+    strlist l = {0};
+    *out_paths = NULL;
+    *out_count = 0;
+    if (macho_list_dylibs(binary, &l)) { sl_free(&l); return -1; }
+    char **p = calloc(l.count ? l.count : 1, sizeof *p);
+    for (size_t i = 0; i < l.count; i++) p[i] = strdup(l.items[i]);
+    *out_paths = p;
+    *out_count = l.count;
+    sl_free(&l);
+    return 0;
 }
 
 int sayo_macho_inject(const char *binary, const char *load_path, int weak) {
