@@ -203,7 +203,7 @@ enum RemoteSigner {
          "compression": Int(o.compression)]
     }
 
-    static func identityJSON(_ ident: Identity, cert c: StoredCertificate, state: AppState) throws -> [String: Any] {
+    @MainActor static func identityJSON(_ ident: Identity, cert c: StoredCertificate, state: AppState) throws -> [String: Any] {
         var err: Unmanaged<CFError>?
         if let raw = SecKeyCopyExternalRepresentation(ident.key, &err) as Data? {
             return ["key": raw.base64EncodedString(), "cert": ident.certificate.base64EncodedString()]
