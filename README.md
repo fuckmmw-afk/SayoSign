@@ -100,7 +100,7 @@ Fields: `name`, `identifier`, `version`, `downloadURL` (or `versions[0]`), `targ
 
 SayoSign can sign on your own server instead of the iPhone (**Settings → Signing server**, or the **iPhone / Server** switch in the sign window).
 
-- The server downloads IPAs from their source URL itself. Apps imported from Files are uploaded in 16 MB parts, so this works behind Cloudflare and resumes after a dropped connection.
+- The server downloads IPAs from their source URL itself. Apps imported from Files are uploaded once, in 16 MB parts (this works behind Cloudflare and resumes after a dropped connection). SayoSign remembers each app's checksum, so the next signing asks the server for it and does not pack or upload it again; the server keeps uploads for 7 days after their last use.
 - Tweaks and the hook framework are uploaded once and reused by checksum. Tweaks already in the app can still be removed or replaced, and every option of on-device signing works.
 - iOS installs the signed app straight from the server through its manifest, so the local installer is not needed. A copy is also downloaded into **Signed**, and the server deletes its copy after 24 hours.
 - The certificate (its key and certificate, or the .p12) is sent for each signing and deleted when it is done. Apple ID profiles are still requested on the iPhone.

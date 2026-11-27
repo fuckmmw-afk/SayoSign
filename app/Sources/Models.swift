@@ -24,6 +24,9 @@ struct LibraryApp: Codable, Identifiable, Hashable {
     var encrypted: Bool
     /// Where the IPA was downloaded from, so the signing server can fetch it itself.
     var originURL: String? = nil
+    /// SHA-256 of this app packed as an IPA, as uploaded to the signing server: the next signing
+    /// asks the server for it by checksum instead of packing and uploading it again.
+    var remoteSHA: String? = nil
 }
 
 struct SignedApp: Codable, Identifiable, Hashable {

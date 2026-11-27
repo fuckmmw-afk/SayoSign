@@ -283,6 +283,11 @@ extension AppState {
         var serverStart = 0.05
         func uploadIPA() async throws -> String {
             progress(0.03, "upload")
+            // Signed on the server before: ask by checksum, no packing and no upload if it is still there.
+            if let known = library.first(where: { $0.id == app.id })?.remoteSHA,
+               let head = try? await RemoteSigner.request("HEAD", "/blobs/\(known)", settings: settings), head.status == 200 {
+                return known
+            }
             let dir = Paths.library.appendingPathComponent(app.id.uuidString, isDirectory: true)
             let zip = Paths.work.appendingPathComponent(UUID().uuidString + ".ipa")
             temp.append(zip)
@@ -291,6 +296,11 @@ extension AppState {
                 Task { @MainActor in progress(0.05 + 0.4 * f, "upload") }
             }
             serverStart = 0.45
+            if let i = library.firstIndex(where: { $0.id == app.id }) {
+                library[i].remoteSHA = sha
+                save()
+            }
+            try? Paths.fm.removeItem(at: zip)
             return sha
         }
         if let origin = app.originURL, origin.lowercased().hasPrefix("http") {
