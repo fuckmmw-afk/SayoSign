@@ -5,11 +5,34 @@ import Security
 /// Signing on a SayoSign server (server/sayosign_server.py). The server gets the certificate,
 /// profile and options for one job; it fetches the IPA from its source URL itself when it can,
 /// otherwise this iPhone uploads it in parts. Tweaks and the hook framework are uploaded once
-/// and reused by checksum. The signed IPA is installed straight from the server and a copy is
-/// downloaded into Signed.
+/// and reused by checksum. The signed IPA is installed straight from the server; a copy comes to
+/// the iPhone only when needed (pairing, running inside SayoSign) or when Settings ask for it.
 enum RemoteSigner {
     /// Cloudflare refuses requests over 100 MB, so files go up in parts of this size.
     static let chunk = 16 * 1024 * 1024
+
+    /// IPA uploads in progress by library app, so signing joins the one started at import.
+    @MainActor final class IPAUpload {
+        var fraction = 0.0
+        var listeners: [@MainActor (Double) -> Void] = []
+        var task: Task<String, Error>?
+        func report(_ f: Double) {
+            fraction = f
+            listeners.forEach { $0(f) }
+        }
+    }
+    @MainActor static var ipaUploads: [UUID: IPAUpload] = [:]
+
+    /// Keeps SayoSign running in the background while anything talks to the server.
+    @MainActor private static var holds = 0
+    @MainActor static func hold() {
+        holds += 1
+        if holds == 1 { InstallServer.shared.keepAlive(true) }
+    }
+    @MainActor static func release() {
+        holds = max(0, holds - 1)
+        if holds == 0 { InstallServer.shared.keepAlive(false) }
+    }
 
     struct Info {
         var version: String
@@ -242,8 +265,8 @@ extension AppState {
         opts = prepared
         let identity = try RemoteSigner.identityJSON(ident, cert: c, state: self)
 
-        InstallServer.shared.keepAlive(true)
-        defer { InstallServer.shared.keepAlive(false) }
+        RemoteSigner.hold()
+        defer { RemoteSigner.release() }
         var temp: [URL] = []
         defer { temp.forEach { try? Paths.fm.removeItem(at: $0) } }
 
@@ -283,24 +306,8 @@ extension AppState {
         var serverStart = 0.05
         func uploadIPA() async throws -> String {
             progress(0.03, "upload")
-            // Signed on the server before: ask by checksum, no packing and no upload if it is still there.
-            if let known = library.first(where: { $0.id == app.id })?.remoteSHA,
-               let head = try? await RemoteSigner.request("HEAD", "/blobs/\(known)", settings: settings), head.status == 200 {
-                return known
-            }
-            let dir = Paths.library.appendingPathComponent(app.id.uuidString, isDirectory: true)
-            let zip = Paths.work.appendingPathComponent(UUID().uuidString + ".ipa")
-            temp.append(zip)
-            try await Task.detached { try SayoCore.zip(dir, to: zip, level: 0) }.value
-            let sha = try await RemoteSigner.upload(zip, settings: settings) { f in
-                Task { @MainActor in progress(0.05 + 0.4 * f, "upload") }
-            }
+            let sha = try await uploadLibraryIPA(app) { f in progress(0.05 + 0.4 * f, "upload") }
             serverStart = 0.45
-            if let i = library.firstIndex(where: { $0.id == app.id }) {
-                library[i].remoteSHA = sha
-                save()
-            }
-            try? Paths.fm.removeItem(at: zip)
             return sha
         }
         if let origin = app.originURL, origin.lowercased().hasPrefix("http") {
@@ -344,29 +351,91 @@ extension AppState {
             throw SayoError(L("Server") + ": " + (job["error"] as? String ?? L("Signing failed")))
         }
 
-        guard let result = job["result"] as? [String: Any], let ipa = (result["ipa_url"] as? String).flatMap(URL.init(string:)) else {
+        guard let result = job["result"] as? [String: Any], let ipa = result["ipa_url"] as? String else {
             throw SayoError(L("Signing failed"))
-        }
-        progress(0.9, "download")
-        let downloaded = try await Downloader.download(ipa, tag: "remote|\(app.id.uuidString)") { f in
-            Task { @MainActor in progress(0.9 + 0.1 * f, "download") }
         }
         let finalName = result["name"] as? String ?? appName
         let finalVersion = result["version"] as? String ?? ""
         let safe = finalName.replacingOccurrences(of: "/", with: "-")
         let fileName = "\(safe)_\(finalVersion)_\(UUID().uuidString.prefix(6)).ipa"
-        let out = Paths.signed.appendingPathComponent(fileName)
-        try Paths.fm.moveItem(at: downloaded, to: out)
         let expires = (result["expires"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
-        let signedApp = SignedApp(id: UUID(), libraryID: app.id, name: finalName, bundleID: result["bundle_id"] as? String ?? "",
+        var signedApp = SignedApp(id: UUID(), libraryID: app.id, name: finalName, bundleID: result["bundle_id"] as? String ?? "",
                                   version: finalVersion, certificateName: c.nickname, signedAt: Date(), ipaFile: fileName,
-                                  size: RemoteSigner.fileSize(out), tweaks: tweaks.map { $0.lastPathComponent },
+                                  size: (result["size"] as? NSNumber)?.int64Value ?? 0, tweaks: tweaks.map { $0.lastPathComponent },
                                   viaAppleID: c.fromAppleID, container: opts.container ? true : nil,
-                                  remoteManifest: result["manifest_url"] as? String, remoteExpires: expires)
+                                  remoteManifest: result["manifest_url"] as? String, remoteExpires: expires, remoteIPA: ipa)
+        // Installed straight from the server, so nothing has to come back to the iPhone first.
+        // Running inside SayoSign needs the file here.
+        if opts.container {
+            progress(0.9, "download")
+            _ = try await ensureLocalCopy(signedApp) { f in progress(0.9 + 0.1 * f, "download") }
+            signedApp.size = RemoteSigner.fileSize(ipaURL(signedApp))
+        }
         signed.insert(signedApp, at: 0)
         save()
         if signedApp.viaAppleID == true { AppState.remindBeforeExpiry(signedApp) }
+        if settings.remoteKeepCopy && !opts.container {
+            let copy = signedApp
+            Task { _ = try? await self.ensureLocalCopy(copy) }
+        }
         return signedApp
+    }
+
+    /// The signed IPA on this iPhone, downloaded from the server if there is no copy yet.
+    func ensureLocalCopy(_ s: SignedApp, progress: (@MainActor (Double) -> Void)? = nil) async throws -> URL {
+        let local = ipaURL(s)
+        if Paths.fm.fileExists(atPath: local.path) { return local }
+        guard s.onServer, let r = s.remoteIPA, let u = URL(string: r) else {
+            throw SayoError(L("The server no longer has this app. Sign it again."))
+        }
+        let file = try await Downloader.download(u, tag: "signed|\(s.ipaFile)") { f in
+            Task { @MainActor in progress?(f) }
+        }
+        if !Paths.fm.fileExists(atPath: local.path) { try Paths.fm.moveItem(at: file, to: local) }
+        return local
+    }
+
+    /// Packs a library app as an IPA and uploads it, once: a later call finds it on the server by
+    /// checksum, and a call while an upload is running (started at import) joins that upload.
+    func uploadLibraryIPA(_ app: LibraryApp, progress: @escaping @MainActor (Double) -> Void) async throws -> String {
+        let settings = self.settings
+        if let known = library.first(where: { $0.id == app.id })?.remoteSHA,
+           let head = try? await RemoteSigner.request("HEAD", "/blobs/\(known)", settings: settings), head.status == 200 {
+            progress(1)
+            return known
+        }
+        let up: RemoteSigner.IPAUpload
+        if let running = RemoteSigner.ipaUploads[app.id] {
+            up = running
+        } else {
+            up = RemoteSigner.IPAUpload()
+            RemoteSigner.ipaUploads[app.id] = up
+            let id = app.id
+            up.task = Task { @MainActor in
+                RemoteSigner.hold()
+                defer {
+                    RemoteSigner.release()
+                    RemoteSigner.ipaUploads[id] = nil
+                }
+                let dir = Paths.library.appendingPathComponent(id.uuidString, isDirectory: true)
+                let zip = Paths.work.appendingPathComponent(UUID().uuidString + ".ipa")
+                defer { try? Paths.fm.removeItem(at: zip) }
+                // Fast deflate: about half the bytes of a stored zip for little CPU.
+                try await Task.detached { try SayoCore.zip(dir, to: zip, level: 1) }.value
+                let sha = try await RemoteSigner.upload(zip, settings: settings) { f in
+                    Task { @MainActor in up.report(f) }
+                }
+                if let i = self.library.firstIndex(where: { $0.id == id }) {
+                    self.library[i].remoteSHA = sha
+                    self.save()
+                }
+                return sha
+            }
+        }
+        up.listeners.append(progress)
+        progress(up.fraction)
+        guard let task = up.task else { throw SayoError(L("Signing failed")) }
+        return try await task.value
     }
 
     private func waitForJob(_ id: String, settings: AppSettings, serverStart: Double,

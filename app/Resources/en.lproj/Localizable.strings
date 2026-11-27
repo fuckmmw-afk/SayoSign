@@ -392,7 +392,7 @@
 "Tweaks updated" = "Tweaks updated";
 
 "Signing server" = "Signing server";
-"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it.";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it. With server signing on by default, IPAs imported from Files go to the server right away, so signing does not wait for the upload." = "Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it. With server signing on by default, IPAs imported from Files go to the server right away, so signing does not wait for the upload.";
 "Server key" = "Server key";
 "Sign on the server by default" = "Sign on the server by default";
 "Server %@ works: %ld in queue, %@ free" = "Server %@ works: %ld in queue, %@ free";
@@ -413,3 +413,5 @@
 "The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "The server downloads this IPA from its source itself, signs it and the app installs straight from the server.";
 "This IPA is uploaded to the server, signed there and installed straight from the server." = "This IPA is uploaded to the server, signed there and installed straight from the server.";
 "Signed by this iPhone." = "Signed by this iPhone.";
+"Keep a copy of signed IPAs on the iPhone" = "Keep a copy of signed IPAs on the iPhone";
+"The server no longer has this app. Sign it again." = "The server no longer has this app. Sign it again.";

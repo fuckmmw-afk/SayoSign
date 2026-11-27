@@ -483,7 +483,8 @@ enum Installer {
         if usesPairing(app, state: state) {
             state.busy = L("Connecting to this iPhone")
             defer { state.busy = nil }
-            try await DeviceLink.install(ipa: state.ipaURL(app), address: state.settings.tunnelAddress, port: 49152) { pct, stage in
+            let local = try await state.ensureLocalCopy(app)
+            try await DeviceLink.install(ipa: local, address: state.settings.tunnelAddress, port: 49152) { pct, stage in
                 switch stage {
                 case "tunnel": state.busy = L("Connecting to this iPhone")
                 case "upload": state.busy = L("Uploading")
@@ -497,6 +498,9 @@ enum Installer {
         if let remote = app.remoteInstallURL, app.container != true {
             await UIApplication.shared.open(remote)
             return false
+        }
+        if !Paths.fm.fileExists(atPath: state.ipaURL(app).path) {
+            throw SayoError(L("The server no longer has this app. Sign it again."))
         }
         let server = InstallServer.shared
         let service = manifestService(state)

@@ -52,10 +52,10 @@ BLOBS = os.path.join(DATA, "blobs")
 JOBS = os.path.join(DATA, "jobs")
 TMP = os.path.join(DATA, "tmp")
 
-OUT_TTL = 24 * 3600          # signed IPAs stay downloadable this long
+OUT_TTL = 48 * 3600          # signed IPAs stay downloadable (and installable) this long
 BLOB_TTL = 7 * 24 * 3600     # uploads are reused this long after their last use (by checksum)
-BLOB_CAP = 3 * 1024 ** 3     # and the cache is trimmed to this size
-OUT_CAP = 4 * 1024 ** 3
+BLOB_CAP = int(2.5 * 1024 ** 3)  # and the cache is trimmed to this size
+OUT_CAP = 2 * 1024 ** 3
 MAX_UPLOAD = 6 * 1024 ** 3
 MIN_FREE = 1024 ** 3         # keep this much disk free after a job
 

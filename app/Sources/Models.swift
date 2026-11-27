@@ -47,6 +47,10 @@ struct SignedApp: Codable, Identifiable, Hashable {
     /// Signed on the signing server: its manifest installs the app straight from there until it expires.
     var remoteManifest: String? = nil
     var remoteExpires: Date? = nil
+    /// The signed IPA on the server (for sharing or a copy while there is none on the iPhone).
+    var remoteIPA: String? = nil
+
+    var onServer: Bool { (remoteExpires ?? .distantPast) > Date() }
 
     var remoteInstallURL: URL? {
         guard let m = remoteManifest, let e = remoteExpires, e > Date().addingTimeInterval(120) else { return nil }
@@ -169,6 +173,8 @@ struct AppSettings: Codable, Equatable {
     var autoAttachTweaks = true
     /// Sign on the signing server instead of this iPhone by default.
     var remoteSigning = false
+    /// Also download every server-signed IPA into Signed (in the background, after it can be installed).
+    var remoteKeepCopy = false
     /// Signing server; its key is kept in the Keychain (RemoteSigner.key).
     var remoteServer = AppSettings.defaultRemoteServer
     static let defaultRemoteServer = "https://fuckmmw.space/sign"
@@ -199,6 +205,7 @@ struct AppSettings: Codable, Equatable {
         autoUpdateTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoUpdateTweaks)) ?? d.autoUpdateTweaks
         autoAttachTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoAttachTweaks)) ?? d.autoAttachTweaks
         remoteSigning = (try? c.decodeIfPresent(Bool.self, forKey: .remoteSigning)) ?? d.remoteSigning
+        remoteKeepCopy = (try? c.decodeIfPresent(Bool.self, forKey: .remoteKeepCopy)) ?? d.remoteKeepCopy
         remoteServer = (try? c.decodeIfPresent(String.self, forKey: .remoteServer)) ?? d.remoteServer
         // Servers Apple now rejects are switched to a working one.
         if Anisette.rejectedServers.contains(anisetteURL) || anisetteURL.trimmingCharacters(in: .whitespaces).isEmpty {

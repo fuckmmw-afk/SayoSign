@@ -62,7 +62,8 @@ final class AppState: ObservableObject {
         guard let data = try? Data(contentsOf: Paths.stateFile),
               let s = try? JSONDecoder().decode(PersistedState.self, from: data) else { return }
         library = s.library.filter { Paths.fm.fileExists(atPath: appURL($0).path) }
-        signed = s.signed.filter { Paths.fm.fileExists(atPath: ipaURL($0).path) }
+        // Server-signed apps without a copy here stay while the server still has them.
+        signed = s.signed.filter { Paths.fm.fileExists(atPath: ipaURL($0).path) || $0.onServer }
         certificates = s.certificates
         sources = s.sources
         installedTweaks = (s.tweaks ?? []).filter { Paths.fm.fileExists(atPath: Paths.tweaks.appendingPathComponent($0.file).path) }
@@ -139,6 +140,14 @@ final class AppState: ObservableObject {
         Paths.signed.appendingPathComponent(app.ipaFile)
     }
 
+    /// The IPA to share: the copy on this iPhone, else the server's link while it lasts.
+    func shareURL(_ app: SignedApp) -> URL? {
+        let local = ipaURL(app)
+        if Paths.fm.fileExists(atPath: local.path) { return local }
+        if app.onServer, let r = app.remoteIPA { return URL(string: r) }
+        return nil
+    }
+
     var selectedCertificate: StoredCertificate? {
         if let id = settings.selectedCertificate, let c = certificates.first(where: { $0.id == id }) { return c }
         return certificates.first
@@ -172,6 +181,10 @@ final class AppState: ObservableObject {
             library.insert(app, at: 0)
             save()
             show(LF("Imported %@", app.name))
+            // Signing on the server: send it there now, so signing later does not wait for the upload.
+            if origin == nil, settings.remoteSigning, RemoteSigner.isConfigured(settings) {
+                Task { _ = try? await self.uploadLibraryIPA(app) { _ in } }
+            }
         } catch {
             try? Paths.fm.removeItem(at: dest)
             show(error.localizedDescription)
@@ -308,6 +321,8 @@ final class AppState: ObservableObject {
                     try finishTweak(file, t)
                     notifyTweaksUpdated([t.version.isEmpty ? t.name : "\(t.name) \(t.version)"])
                 } catch { show(error.localizedDescription) }
+            } else if parts.first == "signed", parts.count > 1 {
+                try? Paths.fm.moveItem(at: file, to: Paths.signed.appendingPathComponent(parts[1]))
             } else if parts.first == "ipa" {
                 let renamed = file.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".ipa")
                 try? Paths.fm.moveItem(at: file, to: renamed)

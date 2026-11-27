@@ -393,7 +393,7 @@
 "Tweaks updated" = "Твики обновлены";
 
 "Signing server" = "Сервер подписи";
-"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "Подпись на вашем сервере вместо iPhone: сервер сам скачивает IPA из источников, подписывает, и iOS ставит приложение прямо с сервера, без локального установщика. Сертификат передаётся на каждую подпись и удаляется после неё.";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it. With server signing on by default, IPAs imported from Files go to the server right away, so signing does not wait for the upload." = "Подпись на вашем сервере вместо iPhone: сервер сам скачивает IPA из источников, подписывает, и iOS ставит приложение прямо с сервера, без локального установщика. Сертификат передаётся на каждую подпись и удаляется после неё. Если подпись на сервере включена по умолчанию, IPA из «Файлов» сразу после импорта отправляется на сервер, и подпись не ждёт загрузку.";
 "Server key" = "Ключ сервера";
 "Sign on the server by default" = "Подписывать на сервере по умолчанию";
 "Server %@ works: %ld in queue, %@ free" = "Сервер %@ работает: в очереди %ld, свободно %@";
@@ -414,3 +414,5 @@
 "The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "Сервер сам скачает этот IPA из источника, подпишет, и приложение установится прямо с сервера.";
 "This IPA is uploaded to the server, signed there and installed straight from the server." = "IPA загрузится на сервер, подпишется там и установится прямо с сервера.";
 "Signed by this iPhone." = "Подпись на этом iPhone.";
+"Keep a copy of signed IPAs on the iPhone" = "Сохранять копию подписанных IPA на iPhone";
+"The server no longer has this app. Sign it again." = "На сервере этого приложения уже нет. Подпишите его заново.";

@@ -63,7 +63,7 @@ struct LibraryView: View {
                         ForEach(filteredSigned) { app in
                             SignedRow(app: app, share: $share, setup: $setup)
                                 .contextMenu {
-                                    Button { share = state.ipaURL(app) } label: { Label(L("Share IPA"), systemImage: "square.and.arrow.up") }
+                                    Button { share = state.shareURL(app) } label: { Label(L("Share IPA"), systemImage: "square.and.arrow.up") }
                                     Button(role: .destructive) { state.deleteSigned(app) } label: { Label(L("Delete"), systemImage: "trash") }
                                 }
                         }
@@ -227,7 +227,7 @@ struct SignedRow: View {
                         }
                         .buttonStyle(SmallButtonStyle())
                     }
-                    Button { share = state.ipaURL(app) } label: { Image(systemName: "square.and.arrow.up") }
+                    Button { share = state.shareURL(app) } label: { Image(systemName: "square.and.arrow.up") }
                         .buttonStyle(SmallButtonStyle(filled: false))
                 }
             }

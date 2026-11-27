@@ -125,7 +125,7 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text(L("Signing server")),
-                        footer: Text(L("Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it."))) {
+                        footer: Text(L("Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it. With server signing on by default, IPAs imported from Files go to the server right away, so signing does not wait for the upload."))) {
                     TextField(AppSettings.defaultRemoteServer, text: $state.settings.remoteServer)
                         .autocapitalization(.none).disableAutocorrection(true).keyboardType(.URL)
                     SecureField(L("Server key"), text: $remoteKey)
@@ -137,6 +137,8 @@ struct SettingsView: View {
                             if v.isEmpty { state.settings.remoteSigning = false }
                         }
                     Toggle(L("Sign on the server by default"), isOn: $state.settings.remoteSigning)
+                        .disabled(remoteKey.isEmpty)
+                    Toggle(L("Keep a copy of signed IPAs on the iPhone"), isOn: $state.settings.remoteKeepCopy)
                         .disabled(remoteKey.isEmpty)
                     Button {
                         Task { await checkRemote() }

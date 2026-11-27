@@ -392,7 +392,7 @@
 "Tweaks updated" = "插件已更新";
 
 "Signing server" = "签名服务器";
-"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "在您的服务器上签名，而不是在此 iPhone 上：服务器自行从源下载 IPA 并签名，iOS 直接从服务器安装应用，无需本地安装器。证书每次签名时发送，签名后即删除。";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it. With server signing on by default, IPAs imported from Files go to the server right away, so signing does not wait for the upload." = "在您的服务器上签名，而不是在此 iPhone 上：服务器自行从源下载 IPA 并签名，iOS 直接从服务器安装应用，无需本地安装器。证书每次签名时发送，签名后即删除。 默认启用服务器签名时，从“文件”导入的 IPA 会立即上传到服务器，签名时无需等待上传。";
 "Server key" = "服务器密钥";
 "Sign on the server by default" = "默认在服务器上签名";
 "Server %@ works: %ld in queue, %@ free" = "服务器 %@ 正常：队列 %ld，可用 %@";
@@ -413,3 +413,5 @@
 "The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "服务器将自行从源下载此 IPA 并签名，应用直接从服务器安装。";
 "This IPA is uploaded to the server, signed there and installed straight from the server." = "此 IPA 将上传到服务器，在那里签名并直接从服务器安装。";
 "Signed by this iPhone." = "由此 iPhone 签名。";
+"Keep a copy of signed IPAs on the iPhone" = "在 iPhone 上保留已签名 IPA 的副本";
+"The server no longer has this app. Sign it again." = "服务器上已没有此应用，请重新签名。";
