@@ -1,0 +1,14 @@
+[Unit]
+Description=SayoSign remote signing server
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/sayosign-server.env
+ExecStart=/usr/bin/python3 /opt/sayosign-server/sayosign_server.py
+Restart=always
+RestartSec=3
+MemoryMax=1500M
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

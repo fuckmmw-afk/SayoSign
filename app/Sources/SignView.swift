@@ -39,6 +39,9 @@ struct SignView: View {
     @State private var dropEmbedded: Set<String> = []
     @State private var replacements: [String: URL] = [:]
     @State private var replacing: String?
+    /// Sign on the signing server instead of this iPhone.
+    @State private var onServer = false
+    @State private var remote = false
 
     enum PickKind: Identifiable {
         case icon, tweak, entitlements, replace
@@ -172,6 +175,21 @@ struct SignView: View {
                     }
                 }
 
+                if RemoteSigner.isConfigured(state.settings) || onServer {
+                    Section(footer: Text(onServer
+                                         ? (app.originURL != nil
+                                            ? L("The server downloads this IPA from its source itself, signs it and the app installs straight from the server.")
+                                            : L("This IPA is uploaded to the server, signed there and installed straight from the server."))
+                                         : L("Signed by this iPhone."))) {
+                        Picker(L("Sign on"), selection: $onServer) {
+                            Text(L("iPhone")).tag(false)
+                            Text(L("Server")).tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(signing)
+                    }
+                }
+
                 if signing {
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
@@ -232,6 +250,7 @@ struct SignView: View {
             .onAppear {
                 removePlugins = state.settings.autoRemovePlugins
                 removeWatch = state.settings.removeWatchApps
+                if !attached { onServer = state.settings.remoteSigning && RemoteSigner.isConfigured(state.settings) }
                 if !attached {
                     attached = true
                     let dir = state.appURL(app)
@@ -506,6 +525,7 @@ struct SignView: View {
     }
 
     func stageName(_ s: String) -> String {
+        if remote { return RemoteSigner.stageName(s) }
         switch s {
         case "copy": return L("Preparing")
         case "prepare": return L("Patching Info.plist")
@@ -542,9 +562,16 @@ struct SignView: View {
             let fromSources = state.installedTweaks.filter { picked.contains($0.identifier) }.map(state.tweakURL)
                 .filter { FileManager.default.fileExists(atPath: $0.path) }
             let all = fromSources + tweaks.filter { !fromSources.contains($0) } + replacements.values
-            let result = try await state.performSign(app: app, cert: c, options: opts, tweaks: all) { f, s in
+            remote = onServer
+            let report: @MainActor (Double, String) -> Void = { f, s in
                 self.progress = f
                 self.stage = s
+            }
+            let result: SignedApp
+            if onServer {
+                result = try await state.performRemoteSign(app: app, cert: c, options: opts, tweaks: all, progress: report)
+            } else {
+                result = try await state.performSign(app: app, cert: c, options: opts, tweaks: all, progress: report)
             }
             progress = 1
             done = result

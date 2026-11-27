@@ -96,6 +96,17 @@ Three ways to list a tweak; other signers ignore these fields:
 
 Fields: `name`, `identifier`, `version`, `downloadURL` (or `versions[0]`), `targets`, and optionally `iconURL`, `localizedDescription`, `size`, `developerName`. A tweak updates when its `version` or link changes. Turn it off in Settings → Tweaks from sources, or per tweak with a long press.
 
+## ☁️ Signing on your server
+
+SayoSign can sign on your own server instead of the iPhone (**Settings → Signing server**, or the **iPhone / Server** switch in the sign window).
+
+- The server downloads IPAs from their source URL itself. Apps imported from Files are uploaded in 16 MB parts, so this works behind Cloudflare and resumes after a dropped connection.
+- Tweaks and the hook framework are uploaded once and reused by checksum. Tweaks already in the app can still be removed or replaced, and every option of on-device signing works.
+- iOS installs the signed app straight from the server through its manifest, so the local installer is not needed. A copy is also downloaded into **Signed**, and the server deletes its copy after 24 hours.
+- The certificate (its key and certificate, or the .p12) is sent for each signing and deleted when it is done. Apple ID profiles are still requested on the iPhone.
+
+Server setup (Linux with nginx and Python 3, no extra packages): run `sudo server/install.sh https://example.com/sign`, add `server/nginx.conf` to the site, then open the printed `sayosign://server?url=…&key=…` link on the iPhone. The API is described at the top of `server/sayosign_server.py`.
+
 ## 🔍 See also
 
 [IPALens](https://murk-sus.github.io/IPALens/) — check any IPA, .p12, profile or .deb in your browser: decrypted or not, UDID in profile, p12 ↔ profile match.

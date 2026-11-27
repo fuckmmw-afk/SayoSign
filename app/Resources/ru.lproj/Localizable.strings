@@ -391,3 +391,26 @@
 "Replace with a file…" = "Заменить файлом…";
 "Keep as it is" = "Оставить как есть";
 "Tweaks updated" = "Твики обновлены";
+
+"Signing server" = "Сервер подписи";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "Подпись на вашем сервере вместо iPhone: сервер сам скачивает IPA из источников, подписывает, и iOS ставит приложение прямо с сервера, без локального установщика. Сертификат передаётся на каждую подпись и удаляется после неё.";
+"Server key" = "Ключ сервера";
+"Sign on the server by default" = "Подписывать на сервере по умолчанию";
+"Server %@ works: %ld in queue, %@ free" = "Сервер %@ работает: в очереди %ld, свободно %@";
+"Signing server set" = "Сервер подписи настроен";
+"Set up the signing server in Settings" = "Настройте сервер подписи в Настройках";
+"The signing server did not answer" = "Сервер подписи не ответил";
+"The signing server refused the key. Check it in Settings → Signing server." = "Сервер подписи не принял ключ. Проверьте его в Настройки → Сервер подписи.";
+"The signing server is unavailable (HTTP %ld)" = "Сервер подписи недоступен (HTTP %ld)";
+"This certificate's private key cannot leave the iPhone, sign it here instead" = "Закрытый ключ этого сертификата нельзя вынести с iPhone — подпишите на iPhone";
+"Uploading to the server" = "Загрузка на сервер";
+"Waiting in the server queue" = "Ожидание в очереди сервера";
+"Server is downloading the IPA" = "Сервер скачивает IPA";
+"Server is unpacking" = "Сервер распаковывает";
+"Signing on the server" = "Подпись на сервере";
+"Downloading the signed IPA" = "Скачивание подписанного IPA";
+"Sign on" = "Где подписать";
+"iPhone" = "iPhone";
+"The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "Сервер сам скачает этот IPA из источника, подпишет, и приложение установится прямо с сервера.";
+"This IPA is uploaded to the server, signed there and installed straight from the server." = "IPA загрузится на сервер, подпишется там и установится прямо с сервера.";
+"Signed by this iPhone." = "Подпись на этом iPhone.";

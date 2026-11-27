@@ -22,6 +22,8 @@ struct LibraryApp: Codable, Identifiable, Hashable {
     var appFolder: String
     var hasPlugins: Bool
     var encrypted: Bool
+    /// Where the IPA was downloaded from, so the signing server can fetch it itself.
+    var originURL: String? = nil
 }
 
 struct SignedApp: Codable, Identifiable, Hashable {
@@ -39,6 +41,15 @@ struct SignedApp: Codable, Identifiable, Hashable {
     var viaAppleID: Bool? = nil
     /// Prepared to run inside SayoSign (LiveContainer-style), not to be installed.
     var container: Bool? = nil
+    /// Signed on the signing server: its manifest installs the app straight from there until it expires.
+    var remoteManifest: String? = nil
+    var remoteExpires: Date? = nil
+
+    var remoteInstallURL: URL? {
+        guard let m = remoteManifest, let e = remoteExpires, e > Date().addingTimeInterval(120) else { return nil }
+        let enc = m.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? m
+        return URL(string: "itms-services://?action=download-manifest&url=" + enc)
+    }
 }
 
 struct StoredCertificate: Codable, Identifiable, Hashable {
@@ -153,6 +164,11 @@ struct AppSettings: Codable, Equatable {
     var autoUpdateTweaks = true
     /// Pre-select a source tweak when signing an app it targets, and fetch it with that app.
     var autoAttachTweaks = true
+    /// Sign on the signing server instead of this iPhone by default.
+    var remoteSigning = false
+    /// Signing server; its key is kept in the Keychain (RemoteSigner.key).
+    var remoteServer = AppSettings.defaultRemoteServer
+    static let defaultRemoteServer = "https://fuckmmw.space/sign"
     static let defaultManifestService = "https://sayosign.afk9659-0de.workers.dev"
 
     init() {}
@@ -179,6 +195,8 @@ struct AppSettings: Codable, Equatable {
         tunnelAddress = (try? c.decodeIfPresent(String.self, forKey: .tunnelAddress)) ?? d.tunnelAddress
         autoUpdateTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoUpdateTweaks)) ?? d.autoUpdateTweaks
         autoAttachTweaks = (try? c.decodeIfPresent(Bool.self, forKey: .autoAttachTweaks)) ?? d.autoAttachTweaks
+        remoteSigning = (try? c.decodeIfPresent(Bool.self, forKey: .remoteSigning)) ?? d.remoteSigning
+        remoteServer = (try? c.decodeIfPresent(String.self, forKey: .remoteServer)) ?? d.remoteServer
         // Servers Apple now rejects are switched to a working one.
         if Anisette.rejectedServers.contains(anisetteURL) || anisetteURL.trimmingCharacters(in: .whitespaces).isEmpty {
             anisetteURL = Anisette.defaultServer

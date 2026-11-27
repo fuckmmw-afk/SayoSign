@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var anisetteInfo: [(String, String)]?
     @State private var anisetteError: String?
     @State private var customServer = false
+    @State private var remoteKey = RemoteSigner.key
+    @State private var remoteStatus: String?
+    @State private var remoteOK = false
+    @State private var checkingRemote = false
 
     var serverChoice: Binding<String> {
         Binding(get: {
@@ -21,6 +25,20 @@ struct SettingsView: View {
             anisetteError = nil
             if v == "custom" { customServer = true } else { customServer = false; state.settings.anisetteURL = v }
         })
+    }
+
+    func checkRemote() async {
+        checkingRemote = true
+        defer { checkingRemote = false }
+        do {
+            let info = try await RemoteSigner.ping(state.settings)
+            remoteOK = true
+            remoteStatus = LF("Server %@ works: %ld in queue, %@ free", info.version, info.queue,
+                              ByteCountFormatter.string(fromByteCount: info.freeDisk, countStyle: .file))
+        } catch {
+            remoteOK = false
+            remoteStatus = error.localizedDescription
+        }
     }
 
     func checkAnisette() async {
@@ -104,6 +122,31 @@ struct SettingsView: View {
                     }
                     Toggle(L("Remove app extensions by default"), isOn: $state.settings.autoRemovePlugins)
                     Toggle(L("Remove Watch apps by default"), isOn: $state.settings.removeWatchApps)
+                }
+
+                Section(header: Text(L("Signing server")),
+                        footer: Text(L("Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it."))) {
+                    TextField(AppSettings.defaultRemoteServer, text: $state.settings.remoteServer)
+                        .autocapitalization(.none).disableAutocorrection(true).keyboardType(.URL)
+                    SecureField(L("Server key"), text: $remoteKey)
+                        .autocapitalization(.none).disableAutocorrection(true)
+                        .onAppear { remoteKey = RemoteSigner.key }
+                        .onChange(of: remoteKey) { v in
+                            RemoteSigner.key = v
+                            remoteStatus = nil
+                            if v.isEmpty { state.settings.remoteSigning = false }
+                        }
+                    Toggle(L("Sign on the server by default"), isOn: $state.settings.remoteSigning)
+                        .disabled(remoteKey.isEmpty)
+                    Button {
+                        Task { await checkRemote() }
+                    } label: {
+                        HStack { Text(L("Check server")); Spacer(); if checkingRemote { ProgressView() } }
+                    }
+                    .disabled(checkingRemote || remoteKey.isEmpty)
+                    if let st = remoteStatus {
+                        Text(st).font(.caption).foregroundColor(remoteOK ? .green : .red)
+                    }
                 }
 
                 Section(header: Text(L("Tweaks from sources")),

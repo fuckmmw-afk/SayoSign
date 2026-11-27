@@ -148,7 +148,7 @@ final class AppState: ObservableObject {
         IconCache.shared.icon(appDir: appURL(app), key: app.id.uuidString)
     }
 
-    func importIPA(_ url: URL, source: String = "file") async {
+    func importIPA(_ url: URL, source: String = "file", origin: URL? = nil) async {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let id = UUID()
@@ -165,7 +165,9 @@ final class AppState: ObservableObject {
                         }
                     }
                 }
-                return try AppState.describe(dir: dest, id: id, source: source)
+                var a = try AppState.describe(dir: dest, id: id, source: source)
+                a.originURL = origin?.absoluteString
+                return a
             }.value
             library.insert(app, at: 0)
             save()
@@ -288,7 +290,7 @@ final class AppState: ObservableObject {
             let ext = url.pathExtension.lowercased()
             let renamed = file.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + "." + (ext == "tipa" ? "tipa" : "ipa"))
             try? Paths.fm.moveItem(at: file, to: renamed)
-            await importIPA(renamed, source: url.host ?? "web")
+            await importIPA(renamed, source: url.host ?? "web", origin: url)
             try? Paths.fm.removeItem(at: renamed)
         } catch {
             downloads.removeAll { $0.id == tid }
@@ -329,6 +331,13 @@ final class AppState: ObservableObject {
                 settings.anisetteURL = s
                 tab = 3
                 show(L("Anisette server set") + ": " + s)
+            } else if url.host == "server", let k = q.first(where: { $0.name == "key" })?.value, !k.isEmpty {
+                // sayosign://server?url=https://host/sign&key=… sets up signing on that server.
+                if let s = q.first(where: { $0.name == "url" })?.value, !s.isEmpty { settings.remoteServer = s }
+                RemoteSigner.key = k
+                settings.remoteSigning = true
+                tab = 3
+                show(L("Signing server set") + ": " + settings.remoteServer)
             } else if url.host == "source", let s = q.first(where: { $0.name == "url" })?.value {
                 tab = 2
                 Task { await self.addSource(s) }
@@ -468,20 +477,11 @@ final class AppState: ObservableObject {
         if settings.autoUpdateTweaks { await updateTweaks() }
     }
 
-    func performSign(app: LibraryApp, cert c: StoredCertificate, options: SayoCore.SignOptions, tweaks: [URL],
-                     progress: @escaping @MainActor (Double, String) -> Void) async throws -> SignedApp {
-        let src = appURL(app)
-        let workRoot = Paths.work.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let payload = workRoot.appendingPathComponent("Payload", isDirectory: true)
-        let appCopy = payload.appendingPathComponent(app.appFolder)
+    /// The identity and profile to sign `app` with; for Apple ID certificates the profile is
+    /// requested from Apple now, and the bundle ID it was made for goes into the options.
+    func signingMaterial(app: LibraryApp, cert c: StoredCertificate, options: SayoCore.SignOptions, appName: String,
+                         progress: @escaping @MainActor (Double, String) -> Void) async throws -> (Identity, Data, SayoCore.SignOptions) {
         var opts = options
-        opts.compression = Int32(settings.compressionLevel)
-        let compression = Int32(settings.compressionLevel)
-        let appName = opts.displayName.isEmpty ? app.name : opts.displayName
-        let certName = c.nickname
-        let viaAppleID = c.fromAppleID
-        let container = options.container
-        let libID = app.id
         let ident = try self.identity(for: c)
         var profile: Data
         if c.fromAppleID {
@@ -500,6 +500,25 @@ final class AppState: ObservableObject {
             guard let files = certificateFiles(c) else { throw SayoError(L("Certificate files are missing")) }
             profile = files.profile
         }
+        return (ident, profile, opts)
+    }
+
+    func performSign(app: LibraryApp, cert c: StoredCertificate, options: SayoCore.SignOptions, tweaks: [URL],
+                     progress: @escaping @MainActor (Double, String) -> Void) async throws -> SignedApp {
+        let src = appURL(app)
+        let workRoot = Paths.work.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let payload = workRoot.appendingPathComponent("Payload", isDirectory: true)
+        let appCopy = payload.appendingPathComponent(app.appFolder)
+        var opts = options
+        opts.compression = Int32(settings.compressionLevel)
+        let compression = Int32(settings.compressionLevel)
+        let appName = opts.displayName.isEmpty ? app.name : opts.displayName
+        let certName = c.nickname
+        let viaAppleID = c.fromAppleID
+        let container = options.container
+        let libID = app.id
+        let (ident, profile, prepared) = try await signingMaterial(app: app, cert: c, options: opts, appName: appName, progress: progress)
+        opts = prepared
         let finalOpts = opts
         let profileData = profile
         do {

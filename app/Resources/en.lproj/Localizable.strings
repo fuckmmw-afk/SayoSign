@@ -390,3 +390,26 @@
 "Replace with a file…" = "Replace with a file…";
 "Keep as it is" = "Keep as it is";
 "Tweaks updated" = "Tweaks updated";
+
+"Signing server" = "Signing server";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it.";
+"Server key" = "Server key";
+"Sign on the server by default" = "Sign on the server by default";
+"Server %@ works: %ld in queue, %@ free" = "Server %@ works: %ld in queue, %@ free";
+"Signing server set" = "Signing server set";
+"Set up the signing server in Settings" = "Set up the signing server in Settings";
+"The signing server did not answer" = "The signing server did not answer";
+"The signing server refused the key. Check it in Settings → Signing server." = "The signing server refused the key. Check it in Settings → Signing server.";
+"The signing server is unavailable (HTTP %ld)" = "The signing server is unavailable (HTTP %ld)";
+"This certificate's private key cannot leave the iPhone, sign it here instead" = "This certificate's private key cannot leave the iPhone, sign it here instead";
+"Uploading to the server" = "Uploading to the server";
+"Waiting in the server queue" = "Waiting in the server queue";
+"Server is downloading the IPA" = "Server is downloading the IPA";
+"Server is unpacking" = "Server is unpacking";
+"Signing on the server" = "Signing on the server";
+"Downloading the signed IPA" = "Downloading the signed IPA";
+"Sign on" = "Sign on";
+"iPhone" = "iPhone";
+"The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "The server downloads this IPA from its source itself, signs it and the app installs straight from the server.";
+"This IPA is uploaded to the server, signed there and installed straight from the server." = "This IPA is uploaded to the server, signed there and installed straight from the server.";
+"Signed by this iPhone." = "Signed by this iPhone.";

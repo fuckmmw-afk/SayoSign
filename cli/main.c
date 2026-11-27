@@ -1,4 +1,5 @@
 #include "sayo.h"
+#include "../core/src/internal.h"
 #include "../core/src/compat.h"
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -8,10 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 
-int rmtree(const char *path);
 
 static int ossl_sign(void *ctx, const uint8_t *msg, size_t n, sayo_buf *sig) {
     EVP_PKEY *key = ctx;
@@ -29,10 +30,31 @@ static int ossl_sign(void *ctx, const uint8_t *msg, size_t n, sayo_buf *sig) {
     return ok ? 0 : -1;
 }
 
+static int line_progress;
+
 static void progress(void *ctx, double f, const char *stage) {
     (void)ctx;
-    fprintf(stderr, "\r[%3d%%] %-10s", (int)(f * 100), stage);
+    if (line_progress) fprintf(stderr, "progress %.4f %s\n", f, stage ? stage : "");
+    else fprintf(stderr, "\r[%3d%%] %-10s", (int)(f * 100), stage);
     fflush(stderr);
+}
+
+typedef struct { double base, span; } span_ctx;
+
+static void span_progress(void *ctx, double f, const char *stage) {
+    span_ctx *s = ctx;
+    progress(NULL, s->base + f * s->span, stage);
+}
+
+static int load_der_identity(const char *key_path, const char *cert_path, EVP_PKEY **key, X509 **cert) {
+    sayo_buf kb, cb;
+    if (sayo_read_file(key_path, &kb) || sayo_read_file(cert_path, &cb)) { fprintf(stderr, "cannot read key or certificate\n"); return -1; }
+    const unsigned char *p = kb.data;
+    *key = d2i_AutoPrivateKey(NULL, &p, (long)kb.len);
+    p = cb.data;
+    *cert = d2i_X509(NULL, &p, (long)cb.len);
+    if (!*key || !*cert) { fprintf(stderr, "invalid key or certificate DER\n"); return -1; }
+    return 0;
 }
 
 static void usage(void) {
@@ -42,6 +64,9 @@ static void usage(void) {
             "               [-b bundle.id] [-n name] [-v version] [-s short_version] [-c icon.png]\n"
             "               [-e extra.entitlements] [-l tweak.dylib|tweak.deb|X.framework]... [-H Hook.framework]\n"
             "               [-z level] [-x remove plugins] [-w remove watch] [-f file sharing]\n"
+            "               [-u remove URL schemes] [-M min_ios] [-r embedded.dylib|X.framework]...\n"
+            "               [-C run-inside container] [-P line progress]\n"
+            "               (-K key.der -X cert.der instead of -k/-p)\n"
             "  sayosign info -k cert.p12 -p password\n"
             "  sayosign ocsp -k cert.p12 -p password\n"
             "  sayosign unzip in.zip outdir | zip dir out.zip | deb in.deb outdir | zstd in.zst out\n");
@@ -107,7 +132,10 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    const char *p12 = NULL, *pass = "", *prov = NULL, *in = NULL, *out = NULL;
+    const char *p12 = NULL, *pass = "", *prov = NULL, *in = NULL, *out = NULL, *keyder = NULL, *certder = NULL;
+    const char *removes[64];
+    size_t nrem = 0;
+    int container = 0;
     sayo_sign_options o;
     memset(&o, 0, sizeof o);
     o.compression_level = 6;
@@ -117,7 +145,7 @@ int main(int argc, char **argv) {
     size_t ntmp = 0;
     int opt;
     optind = 2;
-    while ((opt = getopt(argc, argv, "k:p:m:i:o:b:n:v:s:c:e:l:H:z:xwf")) != -1) {
+    while ((opt = getopt(argc, argv, "k:p:m:i:o:b:n:v:s:c:e:l:H:z:xwfuM:r:CPK:X:")) != -1) {
         switch (opt) {
         case 'k': p12 = optarg; break;
         case 'p': pass = optarg; break;
@@ -135,6 +163,13 @@ int main(int argc, char **argv) {
         case 'x': o.remove_plugins = 1; break;
         case 'w': o.remove_watch = 1; break;
         case 'f': o.file_sharing = 1; break;
+        case 'u': o.remove_url_schemes = 1; break;
+        case 'M': o.min_ios = optarg; break;
+        case 'r': if (nrem < 64) removes[nrem++] = optarg; break;
+        case 'C': container = 1; break;
+        case 'P': line_progress = 1; break;
+        case 'K': keyder = optarg; break;
+        case 'X': certder = optarg; break;
         case 'l': {
             size_t l = strlen(optarg);
             if (l > 4 && !strcmp(optarg + l - 4, ".deb")) {
@@ -157,10 +192,10 @@ int main(int argc, char **argv) {
     }
     o.inject_paths = injects;
     o.inject_count = ninj;
-    if (!p12) { usage(); return 1; }
+    if (!p12 && !(keyder && certder)) { usage(); return 1; }
     EVP_PKEY *key = NULL;
     X509 *cert = NULL;
-    if (load_p12(p12, pass, &key, &cert)) return 1;
+    if (p12 ? load_p12(p12, pass, &key, &cert) : load_der_identity(keyder, certder, &key, &cert)) return 1;
     size_t cl;
     uint8_t *cd = cert_der(cert, &cl);
     sayo_cert_info ci;
@@ -210,7 +245,56 @@ int main(int argc, char **argv) {
     sayo_identity id = { cd, cl, chain, chain_len, nchain, ossl_sign, key };
     char work[1024];
     snprintf(work, sizeof work, "%s/sayosign.%d", sayo_tmp_dir(), getpid());
-    int rc = sayo_sign_ipa(in, out, work, pb.data, pb.len, &id, &o, progress, NULL);
+    int rc = -1;
+    rmtree(work);
+    char payload[1200], app[4096];
+    snprintf(payload, sizeof payload, "%s/Payload", work);
+    span_ctx unz = { 0.0, 0.15 }, sg = { 0.15, 0.75 }, zp = { 0.9, 0.1 };
+    if (sayo_unzip(in, work, span_progress, &unz) || sayo_find_app(payload, app, sizeof app)) goto done;
+    /* An embedded tweak replaced by an injected file of the same name is overwritten by the injection. */
+    const char *drop[64];
+    size_t ndrop = 0;
+    for (size_t i = 0; i < nrem; i++) {
+        int replaced = 0;
+        for (size_t j = 0; j < ninj; j++) {
+            const char *b = strrchr(injects[j], '/');
+            b = b ? b + 1 : injects[j];
+            if (!strcasecmp(b, removes[i])) replaced = 1;
+        }
+        if (!replaced) drop[ndrop++] = removes[i];
+    }
+    sayo_app_remove_embedded(app, drop, ndrop);
+    if (container) {
+        char ip[4200];
+        snprintf(ip, sizeof ip, "%s/Info.plist", app);
+        pl_node *info = pl_parse_file(ip);
+        const char *exe = info ? pl_get_str(info, "CFBundleExecutable") : NULL;
+        char bin[4400];
+        if (!exe) { sayo_set_error("no CFBundleExecutable"); goto done; }
+        snprintf(bin, sizeof bin, "%s/%s", app, exe);
+        int mk = sayo_macho_make_dylib(bin);
+        pl_free(info);
+        if (mk) goto done;
+    }
+    if (sayo_sign_app(app, pb.data, pb.len, &id, &o, span_progress, &sg)) goto done;
+    {
+        int level = o.compression_level;
+        if (level < 0 || level > 9) level = 6;
+        progress(NULL, 0.9, "zip");
+        /* Only Payload goes into the signed IPA (no iTunesMetadata, SwiftSupport, Symbols). */
+        char pack[1200], dst[1300];
+        snprintf(pack, sizeof pack, "%s.pack", work);
+        rmtree(pack);
+        mkdirs(pack);
+        snprintf(dst, sizeof dst, "%s/Payload", pack);
+        if (rename(payload, dst)) { sayo_set_error("cannot move Payload"); goto done; }
+        int zr = sayo_zip_dir(pack, out, level, span_progress, &zp);
+        rmtree(pack);
+        if (zr) goto done;
+    }
+    rc = 0;
+done:
+    rmtree(work);
     fprintf(stderr, "\n");
     for (size_t i = 0; i < ntmp; i++) rmtree(tmpdirs[i]);
     if (rc) { fprintf(stderr, "error: %s\n", sayo_last_error()); return 1; }

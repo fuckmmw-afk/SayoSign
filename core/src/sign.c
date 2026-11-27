@@ -600,3 +600,48 @@ int sayo_macho_list_dylibs(const char *binary, char ***out_paths, size_t *out_co
 int sayo_macho_inject(const char *binary, const char *load_path, int weak) {
     return macho_add_dylib(binary, load_path, weak != 0);
 }
+
+int sayo_find_app(const char *payload, char *out, size_t cap) {
+    return find_app(payload, out, cap);
+}
+
+static void remove_in_bundle(const char *bundle, const char **names, size_t n) {
+    char ip[4096];
+    path_join(ip, sizeof ip, bundle, "Info.plist");
+    pl_node *info = pl_parse_file(ip);
+    const char *exe = info ? pl_get_str(info, "CFBundleExecutable") : NULL;
+    if (exe) {
+        char bin[4096];
+        path_join(bin, sizeof bin, bundle, exe);
+        for (size_t i = 0; i < n; i++) macho_remove_dylib(bin, names[i]);
+    }
+    if (info) pl_free(info);
+    char fw[4096];
+    path_join(fw, sizeof fw, bundle, "Frameworks");
+    for (size_t i = 0; i < n; i++) {
+        char f[4096];
+        path_join(f, sizeof f, fw, names[i]);
+        rmtree(f);
+    }
+}
+
+int sayo_app_remove_embedded(const char *app_dir, const char **names, size_t n) {
+    if (!n) return 0;
+    remove_in_bundle(app_dir, names, n);
+    static const char *dirs[] = { "PlugIns", "Extensions", NULL };
+    for (int k = 0; dirs[k]; k++) {
+        char d[4096];
+        path_join(d, sizeof d, app_dir, dirs[k]);
+        DIR *dd = opendir(d);
+        if (!dd) continue;
+        struct dirent *e;
+        while ((e = readdir(dd))) {
+            if (!ends_with(e->d_name, ".appex")) continue;
+            char b[4096];
+            path_join(b, sizeof b, d, e->d_name);
+            remove_in_bundle(b, names, n);
+        }
+        closedir(dd);
+    }
+    return 0;
+}

@@ -390,3 +390,26 @@
 "Replace with a file…" = "用文件替换…";
 "Keep as it is" = "保持不变";
 "Tweaks updated" = "插件已更新";
+
+"Signing server" = "签名服务器";
+"Signs on your server instead of this iPhone: the server downloads IPAs from their sources itself, signs them and iOS installs the app straight from the server, without the local installer. The certificate is sent for each signing and deleted after it." = "在您的服务器上签名，而不是在此 iPhone 上：服务器自行从源下载 IPA 并签名，iOS 直接从服务器安装应用，无需本地安装器。证书每次签名时发送，签名后即删除。";
+"Server key" = "服务器密钥";
+"Sign on the server by default" = "默认在服务器上签名";
+"Server %@ works: %ld in queue, %@ free" = "服务器 %@ 正常：队列 %ld，可用 %@";
+"Signing server set" = "已设置签名服务器";
+"Set up the signing server in Settings" = "请在设置中配置签名服务器";
+"The signing server did not answer" = "签名服务器未响应";
+"The signing server refused the key. Check it in Settings → Signing server." = "签名服务器拒绝了密钥。请在 设置 → 签名服务器 中检查。";
+"The signing server is unavailable (HTTP %ld)" = "签名服务器不可用（HTTP %ld）";
+"This certificate's private key cannot leave the iPhone, sign it here instead" = "此证书的私钥无法离开 iPhone，请在本机签名";
+"Uploading to the server" = "正在上传到服务器";
+"Waiting in the server queue" = "正在服务器队列中等待";
+"Server is downloading the IPA" = "服务器正在下载 IPA";
+"Server is unpacking" = "服务器正在解包";
+"Signing on the server" = "正在服务器上签名";
+"Downloading the signed IPA" = "正在下载已签名的 IPA";
+"Sign on" = "签名位置";
+"iPhone" = "iPhone";
+"The server downloads this IPA from its source itself, signs it and the app installs straight from the server." = "服务器将自行从源下载此 IPA 并签名，应用直接从服务器安装。";
+"This IPA is uploaded to the server, signed there and installed straight from the server." = "此 IPA 将上传到服务器，在那里签名并直接从服务器安装。";
+"Signed by this iPhone." = "由此 iPhone 签名。";

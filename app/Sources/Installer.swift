@@ -493,6 +493,11 @@ enum Installer {
             }
             return true
         }
+        // Signed on the signing server: iOS installs it straight from there, no local server needed.
+        if let remote = app.remoteInstallURL, app.container != true {
+            await UIApplication.shared.open(remote)
+            return false
+        }
         let server = InstallServer.shared
         let service = manifestService(state)
         if service != nil {
