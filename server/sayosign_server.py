@@ -367,7 +367,7 @@ def run_job(j, spec):
                 errors.append(line)
         p.wait()
         if p.returncode != 0:
-            msg = next((e[7:] for e in reversed(errors) if e.startswith("error: ")), None) or (errors[-1] if errors else "signing failed")
+            msg = next((e[7:] for e in reversed(errors) if e.startswith("error: ")), None) or (errors[0] if errors else "signing failed")
             raise JobError(msg, "sign")
 
         out = os.path.join(tmp, "out.ipa")
